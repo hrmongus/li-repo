@@ -20,7 +20,7 @@ const pct = (n: number, d: number) => (d === 0 ? '–' : `${n} (${Math.round((10
 export default async function DashboardPage() {
   const supabase = await createClient();
   const [leadsRes, statsRes, templatesRes] = await Promise.all([
-    supabase.from('leads').select('status, research_status'),
+    supabase.from('lead_counts').select('status, research_status, n'),
     supabase.from('template_stats').select('*').order('key').order('version'),
     supabase.from('message_templates').select('*').order('status').order('key').order('version'),
   ]);
@@ -30,8 +30,8 @@ export default async function DashboardPage() {
   const counts = new Map<string, number>();
   let inResearch = 0;
   for (const l of leadsRes.data ?? []) {
-    if (l.research_status !== 'ready') inResearch++;
-    else counts.set(l.status, (counts.get(l.status) ?? 0) + 1);
+    if (l.research_status !== 'ready') inResearch += l.n;
+    else counts.set(l.status, (counts.get(l.status) ?? 0) + l.n);
   }
   const statuses = [...Object.keys(FLOW), ...[...counts.keys()].filter((s) => !(s in FLOW))];
   const stats = (statsRes.data ?? []) as Stat[];
