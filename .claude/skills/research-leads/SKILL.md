@@ -46,7 +46,9 @@ from leads
 where research_status <> 'ready' and status not in ('lost', 'won', 'not_accepted', 'no_reply')
   and coalesce(company_type, 'other') not in ('agency', 'distributor')  -- no templates yet
   and coalesce(notes, '') !~ '^(WEAK PROSPECT|NO MATCH|DUPLICATE)'  -- already decided, don't redo
-order by linkedin_url is null, created_at  -- leads that already have a LinkedIn URL first
+order by coalesce(country, '') <> 'US',   -- US prospects first
+         linkedin_url is null,              -- then leads that already have a LinkedIn URL
+         created_at
 limit 5;   -- or the number given, or: where linkedin_url = '<url>'
 ```
 
@@ -65,7 +67,15 @@ limit 5;   -- or the number given, or: where linkedin_url = '<url>'
 2. **Candidates: up to 3 artists.** Use the company's roster page, its socials, or the lead's
    notes (the spreadsheet's "Roster / clients" and "Biggest artist" are hints to check, not facts).
 3. **Spotify for each candidate:** open the artist page and read the exact monthly listeners.
-   Pick the one with the most listeners as primary. Don't save the others.
+   Pick the artist **most likely to get a reply**, not the biggest. Don't save the others.
+   - **Sweet spot: about 20k–1M monthly listeners.** Big enough to matter, small enough that the
+     label person still handles TikTok themselves. Tens of thousands is fine.
+   - **Avoid very big artists (about 2M+)** when a qualifying artist in the sweet spot exists.
+     They usually have their own management and marketing team, so the lead isn't the buyer.
+   - **Under ~10k only if nothing better qualifies.**
+   - Within the sweet spot, prefer an artist with an upcoming or very recent release (last ~2
+     months): that's the strongest pitch.
+   - Write in the artist's notes why you picked them over the other candidates.
 4. **Song and double-check, on one Spotify page.** Open the primary artist's most recent
    release that credits the company (℗/© line). That page gives:
    - the song: `latest_release_title`, or `next_release_title` + `next_release_date` if it's a

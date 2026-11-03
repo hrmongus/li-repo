@@ -20,7 +20,9 @@ and statuses are plain text in the database (no enum, no check constraint).
    - find the company's website and socials;
    - look at up to 3 candidate artists the company works with and check each one's Spotify
      monthly listeners;
-   - keep only the biggest as the primary artist (one artist per lead for now), confirmed by the
+   - keep the one most likely to get a reply as the primary artist (one artist per lead for
+     now): sweet spot about 20k–1M monthly listeners, avoid 2M+ artists (they have their own
+     teams) when a smaller one qualifies, prefer an upcoming or recent release. Confirmed by the
      company's own website or socials, or a release credit (℗/© on Spotify);
    - save its song (latest or upcoming release) and exact monthly listeners, then mark the
      lead `ready`.
@@ -28,6 +30,7 @@ and statuses are plain text in the database (no enum, no check constraint).
      videos) and `{hookLine}` stay empty, so the setter fills them in by hand if a template uses
      them; Copy stays blocked until they do.
    - **LinkedIn only when needed:** to find a missing profile URL or a missing company.
+   - **Order:** US prospects first, then everyone else.
    - Runs on Sonnet (set in the skill) for speed.
 3. **Outreach (setter).** The setter opens the queue and works through ready leads, best first.
    Each lead card shows the current step, a pre-filled message with a Copy button, and the
