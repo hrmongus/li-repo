@@ -7,8 +7,7 @@ TikTok fan-page campaigns).
 ask.
 
 ## Stack
-- **App:** Next.js 15 (App Router, TypeScript, server actions) and Tailwind. Not scaffolded yet;
-  it comes with the first UI task.
+- **App:** Next.js 15 (App Router, TypeScript, server actions) and Tailwind 4.
 - **Data and auth:** Supabase (Postgres + Auth).
 - **Deploy:** Vercel.
 - **Tests:** Vitest.
@@ -19,15 +18,23 @@ docs/SPEC.md                 spec (source of truth)
 lib/outreach.ts              business logic: FLOW (statuses/buttons/due dates), audience,
                              template choice, A/B version, rendering + Copy checks, queueScore
 lib/outreach.test.ts         tests for queueScore and A/B assignment
+lib/leads.ts                 upload: CSV parsing, column matching, LinkedIn URL normalization
+lib/supabase/server.ts       Supabase client for server components and server actions
+middleware.ts                session refresh; signed-out visitors go to /login
+app/login                    email + password sign-in
+app/queue                    Queue: Due (sorted by queueScore) and All leads (search + filters)
+app/dashboard                status counts, A/B stats, template editor
+app/upload                   CSV upload and pasted LinkedIn URLs
 supabase/migrations/         schema (tables, views, RLS, record_step function)
 supabase/seed.sql            message templates (idempotent; never overwrites dashboard edits)
 supabase/config.toml         Supabase CLI config
-app/                         Next.js routes (later)
 ```
 
 ## Commands
 ```bash
 npm install
+npm run dev          # http://localhost:3000 (needs .env.local)
+npm run build
 npm test             # vitest
 npm run typecheck    # tsc
 npm run db:link      # once: link to the Supabase project (asks for project ref + DB password)

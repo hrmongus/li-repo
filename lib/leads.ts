@@ -102,7 +102,11 @@ export function csvToLeads(rows: string[][]): LeadInput[] {
         lead.company_type = t.startsWith('label') ? 'label' : t.startsWith('manage') ? 'management' : 'other';
       } else lead[col] = value;
     }
-    if (!lead.first_name && lead.full_name) lead.first_name = lead.full_name.split(/\s+/)[0];
+    if (!lead.first_name && lead.full_name) {
+      // "Jane Doe" -> Jane, "Doe, Jane" -> Jane. Research can correct it before the lead is ready.
+      const n = lead.full_name.includes(',') ? lead.full_name.split(',')[1] : lead.full_name;
+      lead.first_name = n.trim().split(/\s+/)[0] || undefined;
+    }
     return lead;
   });
 }

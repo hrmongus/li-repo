@@ -40,6 +40,13 @@ and statuses are plain text in the database (no enum, no check constraint).
    all templates.
 3. **Upload.** CSV upload and paste-a-list of LinkedIn URLs. Dedupe on LinkedIn URL; the database
    normalizes it to `https://www.linkedin.com/in/<slug>`.
+   - **CSV:** needs a LinkedIn URL column, named linkedin_url, LinkedIn, profile url or url.
+   - **Optional columns, matched by name:** full_name, first_name, title, company_name,
+     company_type, company_website, email, country. Other columns are ignored.
+   - **First name:** if missing, it's taken from full_name ("Jane Doe" or "Doe, Jane" → Jane).
+   - **Skipped and counted:** rows that aren't a profile URL (/in/…), duplicates within the upload,
+     and leads already in the CRM.
+   - New leads start with research_status = new, so they're in All leads but not in Due.
 
 ## Tables (only these four)
 
@@ -122,8 +129,11 @@ Earlier outcomes are fixed by construction: every message-1 lead is already conn
 "connected" column is always 0.
 
 ### Access
-RLS is enabled on every table, and signed-in users (`authenticated`) can read and write
-everything. Public sign-ups are off in Supabase Auth; team members are invited.
+- Email + password sign-in. Accounts are created by hand in Supabase (Authentication → Users);
+  public sign-ups are off.
+- Two accounts for now: the admin (owner) and the setter. Both have the same rights: RLS lets any
+  signed-in user (`authenticated`) read and write everything. "Admin" is only a label for now.
+- activity.created_by shows which account clicked.
 
 "Today" means the date in Europe/Bratislava.
 
