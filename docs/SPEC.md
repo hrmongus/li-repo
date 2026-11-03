@@ -10,8 +10,9 @@ and statuses are plain text in the database (no enum, no check constraint).
 
 ## How it works
 
-1. **Upload.** A lead is one contact person at a label or management company. The LinkedIn URL
-   is required (it's the dedupe key); email is optional.
+1. **Upload.** A lead is one contact person at a label, management company, agency or
+   distributor. The LinkedIn URL is the dedupe key when present; without it, leads are deduped on
+   name + company. Email is optional.
 2. **Research (Claude Code, `/research-leads`).** Runs locally in the user's Chrome
    (`claude --chrome`) and writes to Supabase through the MCP server in `.mcp.json`. The
    procedure is in `.claude/skills/research-leads/SKILL.md`. For each lead:
