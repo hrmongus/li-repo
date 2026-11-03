@@ -12,7 +12,9 @@ and statuses are plain text in the database (no enum, no check constraint).
 
 1. **Upload.** A lead is one contact person at a label or management company. The LinkedIn URL
    is required (it's the dedupe key); email is optional.
-2. **Research (Claude Code, later task).** For each lead:
+2. **Research (Claude Code, `/research-leads`).** Runs locally in the user's Chrome
+   (`claude --chrome`) and writes to Supabase through the MCP server in `.mcp.json`. The
+   procedure is in `.claude/skills/research-leads/SKILL.md`. For each lead:
    - fill in name, title and company, from LinkedIn or elsewhere (scraping is allowed);
    - find the company's website and socials;
    - find up to 3 artists they work with, confirmed from the company's own website, socials or

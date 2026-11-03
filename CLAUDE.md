@@ -28,6 +28,8 @@ app/upload                   CSV upload and pasted LinkedIn URLs
 supabase/migrations/         schema (tables, views, RLS, record_step function)
 supabase/seed.sql            message templates (idempotent; never overwrites dashboard edits)
 supabase/config.toml         Supabase CLI config
+.claude/skills/research-leads  /research-leads: lead research procedure (run locally with claude --chrome)
+.mcp.json                    Supabase MCP server for the crm project (OAuth via /mcp)
 ```
 
 ## Commands
