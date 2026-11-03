@@ -42,12 +42,18 @@ and statuses are plain text in the database (no enum, no check constraint).
    all templates.
 3. **Upload.** CSV upload and paste-a-list of LinkedIn URLs. Dedupe on LinkedIn URL; the database
    normalizes it to `https://www.linkedin.com/in/<slug>`.
-   - **CSV:** needs a LinkedIn URL column, named linkedin_url, LinkedIn, profile url or url.
-   - **Optional columns, matched by name:** full_name, first_name, title, company_name,
-     company_type, company_website, email, country. Other columns are ignored.
+   - **CSV:** needs a LinkedIn URL column (linkedin_url, LinkedIn, LinkedIn profile, url) or a
+     name column.
+   - **Columns matched by name:** full name, first name, title, company, segment or company
+     type (A label / B manager / C agency / D distributor), website, company LinkedIn (into
+     company_socials), email, country. **Every other non-empty column goes into notes** as a
+     "Header: value" line.
+   - **Rows without a LinkedIn profile** are imported when they name a person, deduped on name +
+     company (or email). Research finds the profile later. Shared mailboxes with no person's
+     name and no profile are skipped.
    - **First name:** if missing, it's taken from full_name ("Jane Doe" or "Doe, Jane" → Jane).
-   - **Skipped and counted:** rows that aren't a profile URL (/in/…), duplicates within the upload,
-     and leads already in the CRM.
+   - **Skipped and counted:** rows with no person, duplicates within the upload, and leads
+     already in the CRM. A LinkedIn link that isn't a profile (/in/…) is moved into notes.
    - New leads start with research_status = new, so they're in All leads but not in Due.
 
 ## Tables (only these four)
@@ -57,10 +63,10 @@ and statuses are plain text in the database (no enum, no check constraint).
 |---|---|
 | full_name, first_name, title | |
 | company_name | |
-| company_type | `label` \| `management` \| `other` |
+| company_type | `label` \| `management` \| `agency` \| `distributor` \| `other`. Agencies and distributors stay out of the queue until they have their own templates |
 | company_website | |
 | company_socials | text, free-form links |
-| linkedin_url | required, unique, normalized on write |
+| linkedin_url | unique when present, normalized on write. Optional at import (research finds it); required for ready |
 | email | optional |
 | country | |
 | research_status | `new` \| `artists_found` \| `enriched` \| `ready` (set by Claude Code) |

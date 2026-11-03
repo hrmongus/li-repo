@@ -13,8 +13,10 @@ export default function UploadPage() {
         <span className="font-medium">CSV file</span>
         <input type="file" name="file" accept=".csv,text/csv" />
         <span className="text-xs text-slate-500">
-          Needs a LinkedIn URL column (linkedin_url, LinkedIn, profile url or url). Optional: full_name, first_name,
-          title, company_name, company_type, company_website, email, country. Other columns are ignored.
+          Recognized columns: LinkedIn URL (linkedin_url, LinkedIn, LinkedIn profile, url), full name, first
+          name, title, company, segment / company type, website, company LinkedIn, email, country. Every other
+          column is kept in the lead&apos;s notes. Rows without a LinkedIn profile are imported if they name a
+          person (research finds the profile); shared mailboxes without a name are skipped.
         </span>
       </label>
 
@@ -30,8 +32,9 @@ export default function UploadPage() {
       {result?.error && <p className="text-red-600">{result.error}</p>}
       {result && !result.error && (
         <p>
-          Added <b>{result.added}</b> new leads. Already in the CRM: {result.alreadyThere}. Duplicates in this
-          upload: {result.duplicatesInFile}. Not a LinkedIn profile URL: {result.invalid}.
+          Added <b>{result.added}</b> new leads ({result.addedWithoutLinkedin} of them without a LinkedIn URL yet).
+          Already in the CRM: {result.alreadyThere}. Duplicates in this upload: {result.duplicatesInFile}. Skipped
+          (no person&apos;s name or LinkedIn profile): {result.noPerson}.
         </p>
       )}
     </form>

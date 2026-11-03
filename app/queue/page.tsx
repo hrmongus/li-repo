@@ -16,6 +16,17 @@ import { LeadCard, type CardProps } from './LeadCard';
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const RESEARCH = ['new', 'artists_found', 'enriched', 'ready'];
+const COMPANY_TYPES = ['label', 'management', 'agency', 'distributor', 'other'];
+
+function slug(url: string | null): string {
+  if (!url) return '(no name)';
+  const s = url.replace('https://www.linkedin.com/in/', '');
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
 
 function toArtist(a: Row | null | undefined): Artist | null {
   if (!a) return null;
@@ -50,9 +61,11 @@ function toCard(l: Row, artist: Artist | null, templates: Template[], today: str
 
   return {
     leadId: l.id,
-    name: l.full_name || l.first_name || l.linkedin_url.replace('https://www.linkedin.com/in/', ''),
+    name: l.full_name || l.first_name || slug(l.linkedin_url),
     title: l.title,
-    company: l.company_name,
+    company: [l.company_name, l.company_type && !['label', 'management'].includes(l.company_type) ? `(${l.company_type})` : null]
+      .filter(Boolean)
+      .join(' ') || null,
     linkedinUrl: l.linkedin_url,
     researchStatus: l.research_status,
     status: l.status,
@@ -72,7 +85,7 @@ function toCard(l: Row, artist: Artist | null, templates: Template[], today: str
 export default async function QueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; q?: string; status?: string; research?: string }>;
+  searchParams: Promise<{ view?: string; q?: string; status?: string; research?: string; type?: string }>;
 }) {
   const sp = await searchParams;
   const view = sp.view === 'all' ? 'all' : 'due';
@@ -96,6 +109,7 @@ export default async function QueuePage({
     if (q) query = query.or(`full_name.ilike.%${q}%,company_name.ilike.%${q}%`);
     if (sp.status) query = query.eq('status', sp.status);
     if (sp.research) query = query.eq('research_status', sp.research);
+    if (sp.type) query = query.eq('company_type', sp.type);
     const { data, error } = await query;
     if (error) throw new Error(error.message);
     cards = (data ?? []).map((l) =>
@@ -135,6 +149,10 @@ export default async function QueuePage({
           <select name="research" defaultValue={sp.research ?? ''} className="rounded border border-slate-300 px-2 py-1.5">
             <option value="">Any research status</option>
             {RESEARCH.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select name="type" defaultValue={sp.type ?? ''} className="rounded border border-slate-300 px-2 py-1.5">
+            <option value="">Any company type</option>
+            {COMPANY_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <button className="rounded bg-slate-900 px-3 py-1.5 text-white">Filter</button>
         </form>

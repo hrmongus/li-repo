@@ -12,7 +12,7 @@
 
 export type Version = 'A' | 'B';
 export type Audience = 'label' | 'manager' | 'release';
-export type CompanyType = 'label' | 'management' | 'other';
+export type CompanyType = 'label' | 'management' | 'agency' | 'distributor' | 'other';
 export type ResearchStatus = 'new' | 'artists_found' | 'enriched' | 'ready';
 
 /** Dates are 'YYYY-MM-DD' strings (Postgres `date`). */

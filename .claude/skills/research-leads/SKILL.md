@@ -41,13 +41,25 @@ select id, full_name, first_name, title, company_name, company_type, company_web
        linkedin_url, country, research_status, notes
 from leads
 where research_status <> 'ready' and status not in ('lost', 'won', 'not_accepted', 'no_reply')
-order by research_status = 'new', created_at   -- unfinished research first
+  and coalesce(company_type, 'other') not in ('agency', 'distributor')  -- no templates yet
+order by research_status = 'new', linkedin_url is null, created_at  -- unfinished first, then with LinkedIn
 limit 5;   -- or the number given, or: where linkedin_url = '<url>'
 ```
 
 ## 2. For each lead
-1. **LinkedIn profile.** Confirm full name, first name (as they'd be addressed), current title
-   and current company. The current job is the top entry under Experience.
+1. **LinkedIn profile.**
+   - If the lead has no `linkedin_url`, find it first. Search the web for
+     `site:linkedin.com/in "<full name>" "<company>"`; use LinkedIn's own search only if that
+     fails, and it counts toward the cap.
+   - Only accept a profile whose name and current company match. Save it as
+     `https://www.linkedin.com/in/<slug>`.
+   - If that URL is already on another lead (unique error), this is a duplicate: write
+     `DUPLICATE of <url>` in notes and move on.
+   - If you can't find a matching profile, write that in notes and skip the rest of this lead.
+   - On the profile, confirm full name, first name (as they'd be addressed), current title and
+     current company. The current job is the top entry under Experience.
+   - Imported leads already have notes from the spreadsheet (Roster / clients, Biggest artist,
+     Source URL...). Use them as leads to check, not as facts.
 2. **Company.** Find the website and socials. Set `company_type`: `label`, `management` or
    `other`. Put social links in `company_socials`, one per line.
 3. **Artists (up to 3).** Collect them from the company's roster page, socials or release

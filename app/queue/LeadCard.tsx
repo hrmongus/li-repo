@@ -9,7 +9,7 @@ export interface CardProps {
   name: string;
   title: string | null;
   company: string | null;
-  linkedinUrl: string;
+  linkedinUrl: string | null;
   researchStatus: string;
   status: string;
   nextActionAt: string | null;
@@ -51,9 +51,15 @@ export function LeadCard(p: CardProps) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <a href={p.linkedinUrl} target="_blank" rel="noreferrer" className="font-semibold hover:underline">
-          {p.name}
-        </a>
+        {p.linkedinUrl ? (
+          <a href={p.linkedinUrl} target="_blank" rel="noreferrer" className="font-semibold hover:underline">
+            {p.name}
+          </a>
+        ) : (
+          <span className="font-semibold">
+            {p.name} <span className="text-xs font-normal text-slate-400">(no LinkedIn yet)</span>
+          </span>
+        )}
         <span className="text-sm text-slate-600">
           {[p.title, p.company].filter(Boolean).join(' · ')}
         </span>
