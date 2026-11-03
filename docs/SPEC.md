@@ -17,11 +17,17 @@ and statuses are plain text in the database (no enum, no check constraint).
    procedure is in `.claude/skills/research-leads/SKILL.md`. For each lead:
    - fill in name, title and company, from LinkedIn or elsewhere (scraping is allowed);
    - find the company's website and socials;
-   - find up to 3 artists they work with, confirmed from the company's own website, socials or
-     release credits;
-   - enrich each artist (Spotify, Instagram, TikTok);
-   - pick the best one as primary (biggest or fastest-growing);
-   - double-check, then mark the lead `ready`.
+   - look at up to 3 candidate artists the company works with and check each one's Spotify
+     monthly listeners;
+   - keep only the biggest as the primary artist (one artist per lead for now), confirmed by the
+     company's own website or socials, or a release credit (℗/© on Spotify);
+   - save its song (latest or upcoming release) and exact monthly listeners, then mark the
+     lead `ready`.
+   - **Spotify only.** No Instagram, TikTok or lyrics at research time. `{N}` (TikTok sound
+     videos) and `{hookLine}` stay empty, so the setter fills them in by hand if a template uses
+     them; Copy stays blocked until they do.
+   - **LinkedIn only when needed:** to find a missing profile URL or a missing company.
+   - Runs on Sonnet (set in the skill) for speed.
 3. **Outreach (setter).** The setter opens the queue and works through ready leads, best first.
    Each lead card shows the current step, a pre-filled message with a Copy button, and the
    step's buttons. The setter sends everything **manually** on LinkedIn. Nothing is ever sent
@@ -80,7 +86,7 @@ and statuses are plain text in the database (no enum, no check constraint).
 `first_name`, `company_name` and a primary artist with a name, a song (next or latest release
 title) and monthly listeners. The LinkedIn URL is always there because it's required.
 
-### artists (up to 3 per lead; the database enforces the limit)
+### artists (research saves one primary artist per lead for now; the database allows up to 3)
 | Column | Notes |
 |---|---|
 | lead_id, name | |
