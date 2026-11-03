@@ -19,6 +19,9 @@ Read `docs/SPEC.md` if you need field details. It is the source of truth.
 - Chrome integration is on (`/chrome` shows Enabled). If not: run `claude --chrome`.
 - The `supabase` MCP server is connected (`/mcp`). All database reads and writes go through
   `execute_sql` on project `exzzpkvcbkswcsnfyqch`.
+- You are connected to **Chrome**, not Comet (the user's personal browser). If the browser
+  looks different from the last check (other tabs, another LinkedIn account, another language),
+  stop and ask. Fix: `/chrome` → Select browser → Chrome.
 - Chrome is logged in to LinkedIn with the **research** account, not the outreach account.
   If LinkedIn shows a login page, CAPTCHA or "unusual activity" check, stop and ask the user.
 
@@ -42,6 +45,7 @@ select id, full_name, first_name, title, company_name, company_type, company_web
 from leads
 where research_status <> 'ready' and status not in ('lost', 'won', 'not_accepted', 'no_reply')
   and coalesce(company_type, 'other') not in ('agency', 'distributor')  -- no templates yet
+  and coalesce(notes, '') !~ '^(WEAK PROSPECT|NO MATCH|DUPLICATE)'  -- already decided, don't redo
 order by linkedin_url is null, created_at  -- leads that already have a LinkedIn URL first
 limit 5;   -- or the number given, or: where linkedin_url = '<url>'
 ```
@@ -52,11 +56,12 @@ limit 5;   -- or the number given, or: where linkedin_url = '<url>'
      imported leads do.
    - **No LinkedIn URL:** search the web for `site:linkedin.com/in "<full name>" "<company>"`.
      Accept only a result whose name and company match, and save it as
-     `https://www.linkedin.com/in/<slug>`. If you can't find one, note it and skip the lead.
+     `https://www.linkedin.com/in/<slug>`. If you can't find one, start the notes with
+     `NO MATCH:` and the reason, and move on.
    - **URL but no company:** open the profile (it counts toward the cap) and read the current
      job, the top entry under Experience.
-   - **The URL is already on another lead** (unique error): write `DUPLICATE of <url>` in notes
-     and move on.
+   - **The URL is already on another lead** (unique error): start the notes with
+     `DUPLICATE of <url>` and move on.
 2. **Candidates: up to 3 artists.** Use the company's roster page, its socials, or the lead's
    notes (the spreadsheet's "Roster / clients" and "Biggest artist" are hints to check, not facts).
 3. **Spotify for each candidate:** open the artist page and read the exact monthly listeners.
@@ -95,7 +100,10 @@ commit;
 - `ready`: primary artist, song and monthly listeners saved, and the company link confirmed. The
   database refuses `ready` without a LinkedIn URL, first name, company and a primary artist with
   name, song and listeners. If it refuses, fix the data; don't work around it.
-- If nothing qualifies, keep the current research_status and write why in notes.
+- If nothing qualifies, keep the current research_status and start the notes with `NO MATCH:`
+  and the reason.
+- Notes prefixes `WEAK PROSPECT:`, `NO MATCH:` and `DUPLICATE` go at the very start of notes
+  (before the imported spreadsheet lines). Leads with these prefixes are never picked again.
 
 ## 4. Report
 End with a table: lead, company, artist, listeners, song, research_status, and what's still
