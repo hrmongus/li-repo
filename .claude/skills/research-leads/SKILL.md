@@ -22,7 +22,9 @@ Read `docs/SPEC.md` first. It is the source of truth for fields, the ready gate 
 - **Read only on LinkedIn.** Never click Connect, Follow, Message, Like, Comment or anything
   that sends or changes something. Only open pages and read them.
 - **Pace like a person.** One profile at a time, wait 20–60 seconds between LinkedIn pages, and
-  open at most 80 LinkedIn pages per day. Stop for the day if LinkedIn shows any warning.
+  open at most 25 LinkedIn pages per day (the research account is new; raise this only when the
+  user says so). Count pages already opened today from the dated `Research YYYY-MM-DD` lines in
+  notes, and ask if unsure. Stop for the day if LinkedIn shows any warning.
 - **Never guess an artist.** Add an artist only when the company's own website or socials list
   them, or a release credit names the company (the ℗/© line on a Spotify album page, Beatport,
   Discogs, Bandcamp). Write the source URL into the artist's notes. No source = no artist.
@@ -101,4 +103,4 @@ notes.
 
 ## 4. Report
 End with a table: lead, company, primary artist, listeners, song, research_status, and what is
-still open. Then say how many LinkedIn pages were opened today.
+still open. Then say how many LinkedIn pages were opened today (cap 25).
