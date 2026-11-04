@@ -181,6 +181,20 @@ export const FLOW: Record<string, Step> = {
 
 export const FINAL_STATUSES = ['no_reply', 'not_accepted', 'won', 'lost'];
 
+/**
+ * The statuses you pass through by always clicking the first (main) button, starting at `start`.
+ * Used to draw the sequence: pathFrom('to_do') is the main path, pathFrom('replied') the reply branch.
+ */
+export function pathFrom(start: string): string[] {
+  const path: string[] = [];
+  let s: string | undefined = start;
+  while (s && FLOW[s] && !path.includes(s)) {
+    path.push(s);
+    s = FLOW[s].buttons[0]?.to;
+  }
+  return path;
+}
+
 export function step(status: string): Step {
   const s = FLOW[status];
   if (!s) throw new Error(`Unknown status: ${status}`);

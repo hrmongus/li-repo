@@ -1,6 +1,7 @@
 import { FLOW } from '@/lib/outreach';
 import { createClient } from '@/lib/supabase/server';
-import { TemplateEditor, type EditorTemplate } from './TemplateEditor';
+import { Sequence } from './Sequence';
+import { type EditorTemplate } from './TemplateEditor';
 
 interface Stat {
   key: string;
@@ -56,7 +57,18 @@ export default async function DashboardPage() {
       </section>
 
       <section>
-        <h2 className="mb-1 font-semibold">A/B stats per template</h2>
+        <h2 className="mb-1 font-semibold">Sequence and messages</h2>
+        <p className="mb-4 text-xs text-slate-500">
+          What the setter does at each step, which button moves the lead on, and when the next step is due. Edit each
+          message right here: A and B side by side; each lead gets one version per message (50/50). Placeholders:{' '}
+          {'{First} {Company} {Artist} {Song} {date} {N} {hookLine} {Samples}'}. Text in [square brackets] blocks Copy
+          until the setter replaces it.
+        </p>
+        <Sequence templates={templates} stats={stats} counts={counts} />
+      </section>
+
+      <details>
+        <summary className="cursor-pointer font-semibold">A/B stats table (all templates)</summary>
         <p className="mb-2 text-xs text-slate-500">
           Of the leads that got this template, how many later connected / replied / replied positively / booked a call.
           Read each template on its own step&apos;s goal: invites → connected, message 1 → replied, replies → call booked.
@@ -85,18 +97,8 @@ export default async function DashboardPage() {
             </tbody>
           </table>
         </div>
-      </section>
+      </details>
 
-      <section>
-        <h2 className="mb-1 font-semibold">Templates</h2>
-        <p className="mb-2 text-xs text-slate-500">
-          Placeholders: {'{First} {Company} {Artist} {Song} {date} {N} {hookLine} {Samples}'}. Text in [square brackets]
-          blocks Copy until the setter replaces it.
-        </p>
-        <div className="flex flex-col gap-2">
-          {templates.map((t) => <TemplateEditor key={t.id} t={t} />)}
-        </div>
-      </section>
     </div>
   );
 }
