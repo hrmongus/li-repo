@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { REPLY_TYPES, checkMessage, type Button, type ReplyType } from '@/lib/outreach';
+import { checkMessage, type Button } from '@/lib/outreach';
 import { clickStepAction, repliedAction } from './actions';
 
 export interface CardProps {
@@ -13,7 +13,10 @@ export interface CardProps {
   researchStatus: string;
   status: string;
   nextActionAt: string | null;
-  replyType: string | null;
+  /** label / management / agency; null when the company type has no messages. */
+  messageType: string | null;
+  disqualifyReason: string | null;
+  planUrl: string | null;
   score: number | null;
   artist: { name: string; listeners: number | null; extra: string[] } | null;
   ready: boolean;
@@ -30,7 +33,6 @@ const fmt = (n: number | null) => (n == null ? '–' : n.toLocaleString('en-US')
 export function LeadCard(p: CardProps) {
   const [text, setText] = useState(p.message?.text ?? '');
   const [copied, setCopied] = useState(false);
-  const [replyType, setReplyType] = useState<ReplyType | ''>('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -64,8 +66,11 @@ export function LeadCard(p: CardProps) {
           {[p.title, p.company].filter(Boolean).join(' · ')}
         </span>
         <span className="ml-auto flex gap-2 text-xs">
+          {p.messageType && <span className="rounded bg-indigo-100 px-2 py-0.5 text-indigo-800">{p.messageType}</span>}
           {p.ready ? (
-            <span className="rounded bg-slate-100 px-2 py-0.5">{p.status}{p.replyType ? ` · ${p.replyType}` : ''}</span>
+            <span className="rounded bg-slate-100 px-2 py-0.5">{p.status}</span>
+          ) : p.disqualifyReason ? (
+            <span className="rounded bg-red-100 px-2 py-0.5 text-red-800">disqualified: {p.disqualifyReason}</span>
           ) : (
             <span className="rounded bg-amber-100 px-2 py-0.5">research: {p.researchStatus}</span>
           )}
@@ -82,6 +87,12 @@ export function LeadCard(p: CardProps) {
             <span key={e} className="text-slate-500"> · {e}</span>
           ))}
         </div>
+      )}
+
+      {p.planUrl && (
+        <a href={p.planUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-sm text-indigo-700 underline">
+          Plan (one-pager)
+        </a>
       )}
 
       {p.ready && (
@@ -149,27 +160,13 @@ export function LeadCard(p: CardProps) {
             ))}
 
             {p.canReply && (
-              <span className="ml-auto flex items-center gap-2">
-                <select
-                  value={replyType}
-                  onChange={(e) => setReplyType(e.target.value as ReplyType)}
-                  className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-                >
-                  <option value="">Reply type…</option>
-                  {REPLY_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                <button
-                  disabled={pending || !replyType}
-                  onClick={() =>
-                    run(() => repliedAction({ leadId: p.leadId, fromStatus: p.status, replyType: replyType as ReplyType }))
-                  }
-                  className="rounded border border-slate-900 px-3 py-1.5 text-sm disabled:opacity-40"
-                >
-                  Replied
-                </button>
-              </span>
+              <button
+                disabled={pending}
+                onClick={() => run(() => repliedAction({ leadId: p.leadId, fromStatus: p.status }))}
+                className="ml-auto rounded border border-slate-900 px-3 py-1.5 text-sm disabled:opacity-40"
+              >
+                Replied
+              </button>
             )}
           </div>
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}

@@ -1,19 +1,20 @@
-// Outreach business logic: status flow, due dates, audience, template choice,
+// Outreach business logic: status flow, due dates, message type, template choice,
 // A/B version assignment, template rendering and queue score.
 // Pure functions only (no database calls), so the UI and server actions share them
 // and they are easy to test. See docs/SPEC.md.
 //
-// The sequence is expected to change. To change it, edit FLOW below and the
-// message_templates rows (template.status = the status a message is sent FROM).
-// Statuses are plain text in the database, so no migration is needed, except for the
-// few status names that the template_stats view hard-codes (see the migration).
+// To change the sequence, edit FLOW below and the message_templates rows
+// (template.status = the status a message is sent FROM). Statuses are plain text in the
+// database, so no migration is needed, except for the status names the template_stats and
+// queue views hard-code (connected, replied, call_booked and the final statuses).
 
 // ---------- Types ----------
 
 export type Version = 'A' | 'B';
-export type Audience = 'label' | 'manager' | 'release';
 export type CompanyType = 'label' | 'management' | 'agency' | 'distributor' | 'other';
-export type ResearchStatus = 'new' | 'artists_found' | 'enriched' | 'ready';
+/** The three message families. Follows company_type; distributors and "other" get none. */
+export type MessageType = 'label' | 'management' | 'agency';
+export type ResearchStatus = 'new' | 'artists_found' | 'enriched' | 'ready' | 'disqualified';
 
 /** Dates are 'YYYY-MM-DD' strings (Postgres `date`). */
 export type DateStr = string;
@@ -25,26 +26,21 @@ export interface Lead {
   company_type: CompanyType | null;
   status: string;
   next_action_at: DateStr | null;
-  reply_type: string | null;
+  top_artist_listeners: number | null;
 }
 
 export interface Artist {
   name: string;
   monthly_listeners: number | null;
   latest_release_title: string | null;
-  next_release_title: string | null;
-  next_release_date: DateStr | null;
-  tiktok_sound_videos: number | null;
-  hook_line: string | null;
-  samples_url: string | null;
+  top_cities: string | null;
 }
 
 export interface Template {
   key: string;
   version: Version;
   status: string;
-  audience: Audience | null;
-  reply_type: string | null;
+  audience: MessageType;
   title: string;
   body: string;
   active: boolean;
@@ -54,23 +50,14 @@ export interface Template {
 
 export const TIME_ZONE = 'Europe/Bratislava';
 export const INVITE_NOTE_LIMIT = 200; // LinkedIn connection-note limit (characters)
-export const RELEASE_WINDOW = { minDays: 14, maxDays: 56 };
-export const POSITIVE_REPLY_TYPES = ['yes_send', 'picks_one'];
-
-export const REPLY_TYPES = [
-  'yes_send',
-  'what_is_this',
-  'send_info',
-  'how_much',
-  'bots',
-  'in_house',
-  'has_agency',
-  'not_now',
-  'not_interested',
-  'picks_one',
-  'not_our_vibe',
+export const DISQUALIFY_REASONS = [
+  'major',
+  'roster_too_big',
+  'roster_too_small',
+  'company_too_big',
+  'distributor',
+  'competitor',
 ] as const;
-export type ReplyType = (typeof REPLY_TYPES)[number];
 
 // ---------- Status flow ----------
 
@@ -82,6 +69,8 @@ export interface Button {
   dueInDays: number | null;
   /** true = this click sends the step's message: activity stores template_key, version, text. */
   sends?: boolean;
+  /** true = "Plan sent": status stays, leads.plan_sent_at is set. */
+  planSent?: boolean;
 }
 
 export interface Step {
@@ -94,9 +83,7 @@ export interface Step {
   noteLimit?: number;
 }
 
-const won: Button = { id: 'won', label: 'Won', to: 'won', dueInDays: null };
 const lost: Button = { id: 'lost', label: 'Lost', to: 'lost', dueInDays: null };
-const callBooked: Button = { id: 'call_booked', label: 'Call booked', to: 'call_booked', dueInDays: null };
 
 export const FLOW: Record<string, Step> = {
   to_do: {
@@ -111,7 +98,7 @@ export const FLOW: Record<string, Step> = {
     noteLimit: INVITE_NOTE_LIMIT,
   },
   connection_requested: {
-    action: 'Wait. If due (21 days, not accepted): withdraw the invite',
+    action: 'Wait. If due: withdraw the invite',
     buttons: [
       { id: 'accepted', label: 'Accepted', to: 'connected', dueInDays: 0 },
       { id: 'withdrawn', label: 'Withdrawn', to: 'not_accepted', dueInDays: null },
@@ -120,56 +107,36 @@ export const FLOW: Record<string, Step> = {
   },
   connected: {
     action: 'Send message 1',
-    buttons: [{ id: 'sent', label: 'Sent', to: 'message_1_sent', dueInDays: 3, sends: true }],
+    buttons: [{ id: 'sent', label: 'Sent', to: 'message_1_sent', dueInDays: 4, sends: true }],
     canReply: true,
   },
   message_1_sent: {
-    action: 'Send voice note (script below)',
-    buttons: [{ id: 'sent', label: 'Sent', to: 'follow_up_1_sent', dueInDays: 4, sends: true }],
+    action: 'Send follow-up nudge',
+    buttons: [{ id: 'sent', label: 'Sent', to: 'follow_up_sent', dueInDays: 7, sends: true }],
     canReply: true,
   },
-  follow_up_1_sent: {
-    action: 'Send follow-up (samples anyway)',
-    buttons: [{ id: 'sent', label: 'Sent', to: 'follow_up_2_sent', dueInDays: 7, sends: true }],
-    canReply: true,
-  },
-  follow_up_2_sent: {
+  follow_up_sent: {
     action: 'Send breakup message',
-    buttons: [{ id: 'sent', label: 'Sent', to: 'no_reply', dueInDays: null, sends: true }],
+    buttons: [{ id: 'sent', label: 'Sent', to: 'breakup_sent', dueInDays: 7, sends: true }],
+    canReply: true,
+  },
+  breakup_sent: {
+    action: 'No answer',
+    buttons: [{ id: 'no_reply', label: 'No reply', to: 'no_reply', dueInDays: null }],
     canReply: true,
   },
   replied: {
-    action: 'Answer using the suggested reply for their reply type',
+    action: 'Answer by hand. Goal: send the plan + 3 edits, then book a call',
     buttons: [
-      { id: 'sent_samples', label: 'Sent samples', to: 'samples_sent', dueInDays: 3, sends: true },
-      { id: 'reply_sent', label: 'Reply sent', to: 'reply_sent', dueInDays: 4, sends: true },
-      callBooked,
+      { id: 'plan_sent', label: 'Plan sent', to: 'replied', dueInDays: 3, planSent: true },
+      { id: 'call_booked', label: 'Call booked', to: 'call_booked', dueInDays: null },
       lost,
     ],
-    canReply: true,
-  },
-  reply_sent: {
-    action: 'Waiting for their answer. If due: send a short follow-up (write it yourself) or close',
-    buttons: [
-      { id: 'followed_up', label: 'Followed up', to: 'reply_sent', dueInDays: 4, sends: true },
-      callBooked,
-      lost,
-    ],
-    canReply: true,
-  },
-  samples_sent: {
-    action: 'Nudge: "which one would you pick?"',
-    buttons: [{ id: 'sent', label: 'Sent', to: 'samples_nudged', dueInDays: 7, sends: true }],
-    canReply: true,
-  },
-  samples_nudged: {
-    action: 'Waiting. If due and no answer: close as no reply',
-    buttons: [callBooked, lost, { id: 'no_reply', label: 'No reply', to: 'no_reply', dueInDays: null }],
-    canReply: true,
+    canReply: false,
   },
   call_booked: {
     action: 'Have the call',
-    buttons: [won, lost],
+    buttons: [{ id: 'won', label: 'Won', to: 'won', dueInDays: null }, lost],
     canReply: false,
   },
   // Final statuses. no_reply still allows "Replied" (a late answer to the breakup).
@@ -183,7 +150,7 @@ export const FINAL_STATUSES = ['no_reply', 'not_accepted', 'won', 'lost'];
 
 /**
  * The statuses you pass through by always clicking the first (main) button, starting at `start`.
- * Used to draw the sequence: pathFrom('to_do') is the main path, pathFrom('replied') the reply branch.
+ * Used to draw the sequence: pathFrom('to_do') is the main path.
  */
 export function pathFrom(start: string): string[] {
   const path: string[] = [];
@@ -206,7 +173,7 @@ export interface Transition {
   from_status: string;
   to_status: string;
   next_action_at: DateStr | null;
-  reply_type: string | null;
+  plan_sent: boolean;
 }
 
 export function clickButton(status: string, buttonId: string, today: DateStr): Transition {
@@ -216,15 +183,14 @@ export function clickButton(status: string, buttonId: string, today: DateStr): T
     from_status: status,
     to_status: button.to,
     next_action_at: button.dueInDays === null ? null : addDays(today, button.dueInDays),
-    reply_type: null,
+    plan_sent: button.planSent === true,
   };
 }
 
-/** The "Replied" button: status = replied, due today, store the reply type. */
-export function clickReplied(status: string, replyType: ReplyType, today: DateStr): Transition {
+/** The "Replied" button: stops the sequence, status = replied, due today. */
+export function clickReplied(status: string, today: DateStr): Transition {
   if (!step(status).canReply) throw new Error(`"Replied" is not available on status "${status}"`);
-  if (!REPLY_TYPES.includes(replyType)) throw new Error(`Unknown reply type: ${replyType}`);
-  return { from_status: status, to_status: 'replied', next_action_at: today, reply_type: replyType };
+  return { from_status: status, to_status: 'replied', next_action_at: today, plan_sent: false };
 }
 
 // ---------- Dates ----------
@@ -248,26 +214,11 @@ export function daysBetween(a: DateStr, b: DateStr): number {
   return Math.round((toUtc(b) - toUtc(a)) / 86_400_000);
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// ---------- Message type ----------
 
-/** '2026-11-14' -> '14 Nov' */
-export function formatShortDate(d: DateStr): string {
-  const [, m, day] = d.split('-').map(Number);
-  return `${day} ${MONTHS[m - 1]}`;
-}
-
-// ---------- Audience ----------
-
-export function isReleaseSoon(artist: Artist | null, today: DateStr): boolean {
-  if (!artist?.next_release_date) return false;
-  const days = daysBetween(today, artist.next_release_date);
-  return days >= RELEASE_WINDOW.minDays && days <= RELEASE_WINDOW.maxDays;
-}
-
-export function audienceFor(lead: Lead, artist: Artist | null, today: DateStr): Audience {
-  if (isReleaseSoon(artist, today)) return 'release';
-  if (lead.company_type === 'management') return 'manager';
-  return 'label';
+/** label → label, management → management, agency → agency; anything else has no messages. */
+export function messageType(companyType: CompanyType | null): MessageType | null {
+  return companyType === 'label' || companyType === 'management' || companyType === 'agency' ? companyType : null;
 }
 
 // ---------- A/B ----------
@@ -304,41 +255,29 @@ export function pickVersion(leadId: string, templateKey: string, activeVersions:
   return null;
 }
 
-/**
- * The template to show for this lead's current step, or null if the step has no message.
- * Matches template.status = lead.status. For templates with a reply_type, it must equal the
- * lead's reply_type. An exact audience match beats a template for any audience (null).
- */
-export function pickTemplate(templates: Template[], lead: Lead, artist: Artist | null, today: DateStr): Template | null {
-  const audience = audienceFor(lead, artist, today);
-  const candidates = templates.filter(
-    (t) =>
-      t.active &&
-      t.status === lead.status &&
-      (t.reply_type === null || t.reply_type === lead.reply_type) &&
-      (t.audience === null || t.audience === audience),
-  );
+/** The template for this lead's current step: same status, same message type. null = none. */
+export function pickTemplate(templates: Template[], lead: Lead): Template | null {
+  const type = messageType(lead.company_type);
+  if (!type) return null;
+  const candidates = templates.filter((t) => t.active && t.status === lead.status && t.audience === type);
   if (candidates.length === 0) return null;
-  const exact = candidates.filter((t) => t.audience === audience);
-  const pool = exact.length > 0 ? exact : candidates;
-  const key = pool.map((t) => t.key).sort()[0];
-  const versions = pool.filter((t) => t.key === key);
+  const key = candidates.map((t) => t.key).sort()[0];
+  const versions = candidates.filter((t) => t.key === key);
   const version = pickVersion(lead.id, key, versions.map((t) => t.version));
   return versions.find((t) => t.version === version) ?? null;
 }
 
 // ---------- Rendering ----------
 
+export const PLACEHOLDERS = ['First', 'Company', 'Artist', 'Song', 'City'];
+
 export function placeholderValues(lead: Lead, artist: Artist | null): Record<string, string | null> {
   return {
     First: lead.first_name,
     Company: lead.company_name,
     Artist: artist?.name ?? null,
-    Song: artist?.next_release_title || artist?.latest_release_title || null,
-    date: artist?.next_release_date ? formatShortDate(artist.next_release_date) : null,
-    N: artist?.tiktok_sound_videos != null ? artist.tiktok_sound_videos.toLocaleString('en-US') : null,
-    hookLine: artist?.hook_line ?? null,
-    Samples: artist?.samples_url ?? null,
+    Song: artist?.latest_release_title ?? null,
+    City: artist?.top_cities?.split(',')[0]?.trim() || null,
   };
 }
 
@@ -375,17 +314,21 @@ export function renderMessage(template: Template, lead: Lead, artist: Artist | n
 // ---------- Queue score ----------
 
 /** Higher = shown first. All tuning happens here. */
-export function queueScore(lead: Pick<Lead, 'status' | 'next_action_at'>, artist: Artist | null, today: DateStr): number {
+export function queueScore(
+  lead: Pick<Lead, 'status' | 'next_action_at' | 'company_type' | 'top_artist_listeners'>,
+  today: DateStr,
+): number {
   let score = 0;
   if (lead.status === 'replied') score += 1000; // replied leads always on top
 
-  const listeners = artist?.monthly_listeners ?? 0;
-  if (listeners >= 100_000) score += 30;
-  else if (listeners >= 20_000) score += 20;
-  else score += 10;
-
-  if (isReleaseSoon(artist, today)) score += 20;
-  if (artist?.tiktok_sound_videos != null) score += 5;
+  if (lead.company_type === 'agency') {
+    score += 15;
+  } else {
+    const top = lead.top_artist_listeners ?? 0;
+    if (top >= 1_000_000) score += 30; // 1M–4M (over 4M is disqualified)
+    else if (top >= 100_000) score += 25;
+    else if (top >= 10_000) score += 15; // under 10k is disqualified
+  }
 
   if (lead.next_action_at) {
     const overdueDays = daysBetween(lead.next_action_at, today);

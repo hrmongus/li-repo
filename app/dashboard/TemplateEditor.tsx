@@ -1,7 +1,7 @@
 'use client';
 
-import { useActionState, useState, useTransition } from 'react';
-import { addVersionB, saveTemplate } from './actions';
+import { useActionState, useState } from 'react';
+import { saveTemplate } from './actions';
 
 export interface EditorTemplate {
   id: string;
@@ -9,7 +9,6 @@ export interface EditorTemplate {
   version: string;
   status: string;
   audience: string | null;
-  reply_type: string | null;
   title: string;
   body: string;
   active: boolean;
@@ -52,25 +51,5 @@ export function TemplateEditor({ t, stats, limit }: { t: EditorTemplate; stats?:
         </button>
       </div>
     </form>
-  );
-}
-
-/** Placeholder shown where a message has no B version yet. */
-export function AddVersionB({ templateKey }: { templateKey: string }) {
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <div className="flex items-center gap-2 self-start rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
-      <span>No B version.</span>
-      <button
-        disabled={pending}
-        onClick={() => start(async () => setError(await addVersionB(templateKey)))}
-        title="Creates an inactive copy of A. Edit it, tick active, save."
-        className="rounded border border-slate-400 px-2 py-0.5 text-slate-700 disabled:opacity-50"
-      >
-        {pending ? 'Adding…' : 'Add B version'}
-      </button>
-      {error && <span className="text-red-600">{error}</span>}
-    </div>
   );
 }

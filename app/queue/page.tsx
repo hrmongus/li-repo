@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import {
   FLOW,
+  messageType,
   pickTemplate,
   queueScore,
   renderMessage,
@@ -15,7 +16,7 @@ import { LeadCard, type CardProps } from './LeadCard';
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const RESEARCH = ['new', 'artists_found', 'enriched', 'ready'];
+const RESEARCH = ['new', 'artists_found', 'enriched', 'ready', 'disqualified'];
 const COMPANY_TYPES = ['label', 'management', 'agency', 'distributor', 'other'];
 
 function slug(url: string | null): string {
@@ -34,44 +35,40 @@ function toArtist(a: Row | null | undefined): Artist | null {
     name: a.name,
     monthly_listeners: a.monthly_listeners,
     latest_release_title: a.latest_release_title,
-    next_release_title: a.next_release_title,
-    next_release_date: a.next_release_date,
-    tiktok_sound_videos: a.tiktok_sound_videos,
-    hook_line: a.hook_line,
-    samples_url: a.samples_url,
+    top_cities: a.top_cities,
   };
 }
 
 function toCard(l: Row, artist: Artist | null, templates: Template[], today: string, withScore: boolean): CardProps {
   const lead = l as Lead;
-  const ready = l.research_status === 'ready' && artist !== null && FLOW[l.status] !== undefined;
+  const type = messageType(l.company_type);
+  // Agencies have no artist; label and management leads need their primary artist.
+  const ready = l.research_status === 'ready' && type !== null && (type === 'agency' || artist !== null) && FLOW[l.status] !== undefined;
   const s = ready ? step(l.status) : null;
   let message: CardProps['message'] = null;
   if (s && s.buttons.some((b) => b.sends)) {
-    const t = pickTemplate(templates, lead, artist, today);
+    const t = pickTemplate(templates, lead);
     message = t
       ? { text: renderMessage(t, lead, artist).text, templateKey: t.key, version: t.version, templateTitle: t.title }
       : { text: '', templateKey: null, version: null, templateTitle: null };
   }
   const extra: string[] = [];
-  if (artist?.next_release_title) {
-    extra.push(`next: ${artist.next_release_title}${artist.next_release_date ? ` (${artist.next_release_date})` : ''}`);
-  } else if (artist?.latest_release_title) extra.push(`latest: ${artist.latest_release_title}`);
-  if (artist?.tiktok_sound_videos != null) extra.push(`${artist.tiktok_sound_videos.toLocaleString('en-US')} TikTok videos`);
+  if (artist?.latest_release_title) extra.push(`latest: ${artist.latest_release_title}`);
+  if (artist?.top_cities) extra.push(`top cities: ${artist.top_cities}`);
 
   return {
     leadId: l.id,
     name: l.full_name || l.first_name || slug(l.linkedin_url),
     title: l.title,
-    company: [l.company_name, l.company_type && !['label', 'management'].includes(l.company_type) ? `(${l.company_type})` : null]
-      .filter(Boolean)
-      .join(' ') || null,
+    company: [l.company_name, l.company_type && !type ? `(${l.company_type})` : null].filter(Boolean).join(' ') || null,
     linkedinUrl: l.linkedin_url,
     researchStatus: l.research_status,
     status: l.status,
     nextActionAt: l.next_action_at,
-    replyType: l.reply_type,
-    score: withScore && ready ? queueScore(lead, artist, today) : null,
+    messageType: type,
+    disqualifyReason: l.disqualify_reason,
+    planUrl: l.plan_url,
+    score: withScore && ready ? queueScore(lead, today) : null,
     artist: artist ? { name: artist.name, listeners: artist.monthly_listeners, extra } : null,
     ready,
     action: s?.action ?? '',
@@ -101,7 +98,7 @@ export default async function QueuePage({
     const { data, error } = await supabase.from('queue').select('*');
     if (error) throw new Error(error.message);
     cards = (data ?? [])
-      .map((r) => toCard(r, toArtist({ ...r, name: r.artist_name }), templates, today, true))
+      .map((r) => toCard(r, r.artist_id ? toArtist({ ...r, name: r.artist_name }) : null, templates, today, true))
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   } else {
     let query = supabase.from('leads').select('*, artists(*)').order('created_at', { ascending: false }).limit(200);

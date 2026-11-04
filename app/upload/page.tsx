@@ -14,7 +14,7 @@ export default function UploadPage() {
         <input type="file" name="file" accept=".csv,text/csv" />
         <span className="text-xs text-slate-500">
           Recognized columns: LinkedIn URL (linkedin_url, LinkedIn, LinkedIn profile, url), full name, first
-          name, title, company, segment / company type, website, company LinkedIn, email, country. Every other
+          name, title, company, company_type (label, management, agency, distributor or other; a "segment" column works too), website, company LinkedIn, email, country. Every other
           column is kept in the lead&apos;s notes. Rows without a LinkedIn profile are imported if they name a
           person (research finds the profile); shared mailboxes without a name are skipped.
         </span>

@@ -1,31 +1,32 @@
-import { FINAL_STATUSES, FLOW, REPLY_TYPES, pathFrom, type Button } from '@/lib/outreach';
-import { AddVersionB, TemplateEditor, type EditorTemplate } from './TemplateEditor';
+import { FINAL_STATUSES, FLOW, pathFrom, type Button, type MessageType } from '@/lib/outreach';
+import { TemplateEditor, type EditorTemplate } from './TemplateEditor';
 
 // The sequence diagram is drawn from FLOW in lib/outreach.ts, so it follows the sequence when
-// it changes. Messages are the message_templates rows whose status is the step they're sent from.
+// it changes. Messages are the message_templates rows whose status is the step they're sent from;
+// each message step shows the three message types side by side.
 
 export interface TemplateStat {
   key: string;
   version: string;
+  message_type: MessageType;
+  step: string;
   leads_sent: number;
   connected: number;
   replied: number;
-  replied_positive: number;
   call_booked: number;
 }
+
+const TYPES: MessageType[] = ['label', 'management', 'agency'];
 
 const LABELS: Record<string, string> = {
   to_do: 'Warm up',
   warmed_up: 'Connection request',
   connection_requested: 'Waiting for accept',
   connected: 'Message 1',
-  message_1_sent: 'Voice note',
-  follow_up_1_sent: 'Follow-up: samples anyway',
-  follow_up_2_sent: 'Breakup message',
+  message_1_sent: 'Follow-up nudge',
+  follow_up_sent: 'Breakup message',
+  breakup_sent: 'No answer',
   replied: 'They replied',
-  reply_sent: 'Waiting for their answer',
-  samples_sent: 'Samples nudge',
-  samples_nudged: 'Waiting after nudge',
   call_booked: 'Call booked',
   no_reply: 'End: no reply',
   not_accepted: 'End: invite not accepted',
@@ -34,58 +35,61 @@ const LABELS: Record<string, string> = {
 };
 const label = (s: string) => LABELS[s] ?? s;
 
-const AUDIENCE_ORDER = ['label', 'manager', 'release'];
-
 function wait(b: Button): string {
   if (b.dueInDays === null) return FINAL_STATUSES.includes(b.to) ? 'end' : 'no due date';
   if (b.dueInDays === 0) return 'same day';
   return `next step in ${b.dueInDays} day${b.dueInDays === 1 ? '' : 's'}`;
 }
 
-/** Which stat matters for messages sent from this step. */
-function statLine(status: string, s: TemplateStat | undefined): string {
-  if (!s || s.leads_sent === 0) return 'not sent yet';
+/** The outcome that matters for messages sent from this step. */
+function rate(status: string, s: { leads_sent: number; connected: number; replied: number }): string {
+  if (s.leads_sent === 0) return 'not sent yet';
   const pct = (n: number) => `${Math.round((100 * n) / s.leads_sent)}%`;
-  if (status === 'warmed_up') return `sent ${s.leads_sent} · accepted ${pct(s.connected)}`;
-  if (status === 'replied') return `sent ${s.leads_sent} · call booked ${pct(s.call_booked)}`;
-  return `sent ${s.leads_sent} · replied ${pct(s.replied)} · positive ${pct(s.replied_positive)}`;
+  return status === 'warmed_up'
+    ? `sent ${s.leads_sent} · accepted ${pct(s.connected)}`
+    : `sent ${s.leads_sent} · replied ${pct(s.replied)}`;
+}
+
+/** All-types total per version for one step (e.g. invite A vs invite B across all three types). */
+function StepTotals({ status, stats }: { status: string; stats: TemplateStat[] }) {
+  const own = stats.filter((s) => s.step === status);
+  const versions = [...new Set(own.map((s) => s.version))].sort();
+  if (own.length === 0) return null;
+  return (
+    <p className="mt-1 text-xs text-slate-500">
+      All types:{' '}
+      {versions
+        .map((v) => {
+          const rows = own.filter((s) => s.version === v);
+          const sum = (k: 'leads_sent' | 'connected' | 'replied') => rows.reduce((n, r) => n + r[k], 0);
+          return `${v} ${rate(status, { leads_sent: sum('leads_sent'), connected: sum('connected'), replied: sum('replied') })}`;
+        })
+        .join('  ·  ')}
+    </p>
+  );
 }
 
 function Messages({ status, templates, stats }: { status: string; templates: EditorTemplate[]; stats: Map<string, TemplateStat> }) {
-  const keys = [...new Set(templates.map((t) => t.key))].sort((a, b) => {
-    const ta = templates.find((t) => t.key === a)!;
-    const tb = templates.find((t) => t.key === b)!;
-    if (ta.reply_type || tb.reply_type) {
-      return REPLY_TYPES.indexOf(ta.reply_type as never) - REPLY_TYPES.indexOf(tb.reply_type as never);
-    }
-    return AUDIENCE_ORDER.indexOf(ta.audience ?? '') - AUDIENCE_ORDER.indexOf(tb.audience ?? '');
-  });
   const limit = FLOW[status]?.noteLimit ?? null;
   return (
-    <div className="mt-3 flex flex-col gap-3">
-      {keys.map((key) => {
-        const versions = templates.filter((t) => t.key === key);
-        const a = versions.find((t) => t.version === 'A');
-        const b = versions.find((t) => t.version === 'B');
-        const first = versions[0];
-        const who = first.reply_type
-          ? `when the reply is “${first.reply_type}”`
-          : first.audience
-            ? `for ${first.audience === 'release' ? 'artists with a release in 14–56 days' : first.audience === 'manager' ? 'management companies' : 'labels'}`
-            : 'for everyone';
+    <div className="mt-3 grid gap-3 lg:grid-cols-3">
+      {TYPES.map((type) => {
+        const versions = templates.filter((t) => t.audience === type).sort((a, b) => a.version.localeCompare(b.version));
         return (
-          <div key={key}>
-            <div className="mb-1 text-xs text-slate-600">
-              <span className="font-mono">{key}</span> · {who}
-            </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              {a ? <TemplateEditor t={a} limit={limit} stats={statLine(status, stats.get(`${key}:A`))} /> : <div />}
-              {b ? (
-                <TemplateEditor t={b} limit={limit} stats={statLine(status, stats.get(`${key}:B`))} />
-              ) : (
-                <AddVersionB templateKey={key} />
-              )}
-            </div>
+          <div key={type} className="flex flex-col gap-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">{type}</div>
+            {versions.length === 0 && <p className="text-xs text-red-600">No template for this type.</p>}
+            {versions.map((t) => {
+              const s = stats.get(`${t.key}:${t.version}`);
+              return (
+                <TemplateEditor
+                  key={t.id}
+                  t={t}
+                  limit={limit}
+                  stats={s ? rate(status, s) : 'not sent yet'}
+                />
+              );
+            })}
           </div>
         );
       })}
@@ -99,6 +103,7 @@ function Step({
   num,
   templates,
   stats,
+  statRows,
   mainButtonShownBelow,
 }: {
   status: string;
@@ -106,6 +111,7 @@ function Step({
   num?: string;
   templates: EditorTemplate[];
   stats: Map<string, TemplateStat>;
+  statRows: TemplateStat[];
   mainButtonShownBelow: boolean;
 }) {
   const s = FLOW[status];
@@ -125,21 +131,21 @@ function Step({
         <span className="ml-auto text-xs text-slate-500">{n} lead{n === 1 ? '' : 's'} here now</span>
       </div>
       {!final && <p className="mt-1 text-sm text-slate-700">Setter: {s.action}</p>}
-      {s.canReply && !final && (
-        <p className="mt-1 text-xs text-slate-500">They can reply at this step → “They replied”.</p>
-      )}
+      {s.canReply && <p className="mt-1 text-xs text-slate-500">They can reply at this step → “They replied”.</p>}
       {sideButtons.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2 text-xs">
           {sideButtons.map((b) => (
             <span key={b.id} className="rounded-full border border-slate-300 px-2 py-0.5">
-              <b>{b.label}</b> → {label(b.to)} ({wait(b)})
+              <b>{b.label}</b> → {b.to === status ? 'stays here' : label(b.to)} ({wait(b)})
             </span>
           ))}
         </div>
       )}
-      {own.length > 0 && <Messages status={status} templates={own} stats={stats} />}
-      {!final && own.length === 0 && s.buttons.some((b) => b.sends) && (
-        <p className="mt-2 text-xs text-slate-500">No template: the setter writes this message by hand.</p>
+      {own.length > 0 && (
+        <>
+          <StepTotals status={status} stats={statRows} />
+          <Messages status={status} templates={own} stats={stats} />
+        </>
       )}
     </div>
   );
@@ -156,25 +162,8 @@ function Arrow({ b }: { b: Button }) {
   );
 }
 
-function Path({ statuses, prefix, counts, templates, stats }: { statuses: string[]; prefix: string; counts: Map<string, number>; templates: EditorTemplate[]; stats: Map<string, TemplateStat> }) {
-  return (
-    <div>
-      {statuses.map((status, i) => {
-        const next = statuses[i + 1];
-        const main = next ? FLOW[status].buttons[0] : undefined;
-        return (
-          <div key={status}>
-            <Step status={status} num={`${prefix}${i + 1}`} n={counts.get(status) ?? 0} templates={templates} stats={stats} mainButtonShownBelow={!!main} />
-            {main && <Arrow b={main} />}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/** One-line map of a path: numbered steps with the wait between them. Click to jump. */
-function Overview({ statuses, prefix }: { statuses: string[]; prefix: string }) {
+/** One-line map of the main path: numbered steps with the wait between them. Click to jump. */
+function Overview({ statuses }: { statuses: string[] }) {
   return (
     <div className="flex flex-wrap items-center gap-1 text-xs">
       {statuses.map((status, i) => {
@@ -186,13 +175,9 @@ function Overview({ statuses, prefix }: { statuses: string[]; prefix: string }) 
               href={`#step-${status}`}
               className={`rounded-full border px-2 py-0.5 hover:bg-slate-100 ${final ? 'border-slate-200 bg-slate-100' : 'border-slate-300'}`}
             >
-              <b>{prefix}{i + 1}</b> {label(status)}
+              <b>{i + 1}</b> {label(status)}
             </a>
-            {b && (
-              <span className="text-slate-500">
-                {b.dueInDays ? `—${b.dueInDays}d→` : '→'}
-              </span>
-            )}
+            {b && <span className="text-slate-500">{b.dueInDays ? `—${b.dueInDays}d→` : '→'}</span>}
           </span>
         );
       })}
@@ -203,44 +188,42 @@ function Overview({ statuses, prefix }: { statuses: string[]; prefix: string }) 
 export function Sequence({ templates, stats, counts }: { templates: EditorTemplate[]; stats: TemplateStat[]; counts: Map<string, number> }) {
   const statMap = new Map(stats.map((s) => [`${s.key}:${s.version}`, s]));
   const main = pathFrom('to_do');
-  const reply = pathFrom('replied');
-  const other = Object.keys(FLOW).filter(
-    (s) => !main.includes(s) && !reply.includes(s) && !FINAL_STATUSES.includes(s),
-  );
-  const ends = FINAL_STATUSES.filter((s) => !main.includes(s) && !reply.includes(s));
+  const other = Object.keys(FLOW).filter((s) => !main.includes(s) && !FINAL_STATUSES.includes(s));
+  const ends = FINAL_STATUSES.filter((s) => !main.includes(s));
   const orphan = templates.filter((t) => !FLOW[t.status]);
+  const common = { templates, stats: statMap, statRows: stats };
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3">
-        <Overview statuses={main} prefix="" />
-        <Overview statuses={reply} prefix="R" />
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <Overview statuses={main} />
+        <p className="mt-2 text-xs text-slate-500">
+          From step 4 on, a reply stops the sequence: the setter clicks <b>Replied</b> and answers by hand.
+        </p>
       </div>
 
       <div>
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Main path</h3>
-        <Path statuses={main} prefix="" counts={counts} templates={templates} stats={statMap} />
+        {main.map((status, i) => {
+          const next = main[i + 1];
+          const b = next ? FLOW[status].buttons[0] : undefined;
+          return (
+            <div key={status}>
+              <Step status={status} num={`${i + 1}`} n={counts.get(status) ?? 0} mainButtonShownBelow={!!b} {...common} />
+              {b && <Arrow b={b} />}
+            </div>
+          );
+        })}
       </div>
 
       <div>
-        <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">When they reply</h3>
-        <p className="mb-2 text-xs text-slate-500">
-          From “Message 1” on, the setter clicks <b>Replied</b> and picks the reply type. The lead jumps here, due the
-          same day, and gets the reply message for that type.
-        </p>
-        <Path statuses={reply} prefix="R" counts={counts} templates={templates} stats={statMap} />
-      </div>
-
-      {other.length > 0 && (
-        <div>
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Other steps</h3>
-          <div className="flex flex-col gap-3">
-            {other.map((s) => (
-              <Step key={s} status={s} n={counts.get(s) ?? 0} templates={templates} stats={statMap} mainButtonShownBelow={false} />
-            ))}
-          </div>
+        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">When they reply</h3>
+        <div className="flex flex-col gap-3">
+          {other.map((s) => (
+            <Step key={s} status={s} n={counts.get(s) ?? 0} mainButtonShownBelow={false} {...common} />
+          ))}
         </div>
-      )}
+      </div>
 
       <div>
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Other endings</h3>
