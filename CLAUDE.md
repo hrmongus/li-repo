@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-Internal CRM for LinkedIn outreach to music labels and artist managers (Propagandistan, faceless
-TikTok fan-page campaigns).
+Internal CRM for LinkedIn outreach to music labels, artist managers and agencies (Propagandistan,
+faceless TikTok fan-page campaigns).
 
 **`docs/SPEC.md` is the source of truth.** Read it before any change. If code and spec disagree,
 ask.
@@ -15,7 +15,7 @@ ask.
 ## Folder layout
 ```
 docs/SPEC.md                 spec (source of truth)
-lib/outreach.ts              business logic: FLOW (statuses/buttons/due dates), audience,
+lib/outreach.ts              business logic: FLOW (statuses/buttons/due dates), message type,
                              template choice, A/B version, rendering + Copy checks, queueScore
 lib/outreach.test.ts         tests for queueScore and A/B assignment
 lib/leads.ts                 upload: CSV parsing, column matching, LinkedIn URL normalization
@@ -23,7 +23,7 @@ lib/supabase/server.ts       Supabase client for server components and server ac
 middleware.ts                session refresh; signed-out visitors go to /login
 app/login                    email + password sign-in
 app/queue                    Queue: Due (sorted by queueScore) and All leads (search + filters)
-app/dashboard                status counts, A/B stats, template editor
+app/dashboard                status + disqualified counts, sequence with template editor, A/B stats
 app/upload                   CSV upload and pasted LinkedIn URLs
 supabase/migrations/         schema (tables, views, RLS, record_step function)
 supabase/seed.sql            message templates (idempotent; never overwrites dashboard edits)
@@ -48,24 +48,43 @@ New migration: `npx supabase migration new <name>`, then edit the file in `supab
 - **Business logic** lives in `lib/`. Keep it as pure functions; UI and server actions call it.
 - **Button clicks** use `clickButton()` / `clickReplied()` from `lib/outreach.ts` to compute the
   transition, then call the database function `record_step()`. That function updates the lead
-  and writes the activity row in one transaction. Never update `leads.status` any other way.
-- **Changing the sequence:** edit `FLOW` in `lib/outreach.ts` and the template rows
-  (`message_templates.status` = the status a message is sent FROM).
-  - Statuses are plain text in the database, so no migration is needed.
-  - Exception: the `template_stats` view hard-codes `connected`, `call_booked`, `yes_send` and
-    `picks_one`. Renaming any of those needs a migration.
+  and writes the activity row in one transaction. "Plan sent" uses it too (`p_plan_sent`).
+  Never update `leads.status` any other way.
+- **Message type = company_type** (label, management, agency). Templates: `message_templates`
+  rows with `status` = the step a message is sent from and `audience` = the message type.
+- **Changing the sequence:** edit `FLOW` in `lib/outreach.ts` and the template rows. Statuses are
+  plain text, but the `queue` view (final statuses) and `template_stats` view (`connected`,
+  `replied`, `call_booked`) hard-code a few names; renaming those needs a migration.
+- **Company cap** (max 2 active contacts per company) is computed in the `queue` view.
 - **Time zone:** "today" is Europe/Bratislava, both in SQL (`app_today()`) and TypeScript
   (`todayStr()`).
 - **Queue order:** done only by `queueScore()`. The `queue` view is unsorted.
 
+## Research (`/research-leads`, procedure in `.claude/skills/research-leads/SKILL.md`)
+Cheapest checks first, so bad leads stop early:
+1. Classify `company_type` (label, management, agency, distributor, other).
+2. Distributor → disqualify. Major (check the parent company) → disqualify.
+3. Agency: check its services. Sells TikTok fan pages / seeding / UGC / creator campaigns →
+   disqualify as `competitor`. No artist research for agencies, ever.
+4. Label / management: find the roster, record the **biggest** artist (any size) and set
+   `top_artist_listeners`; apply `roster_too_big` (over 4M) and `roster_too_small` (no artist
+   with 10k+). Never re-pick a smaller artist to get around this.
+5. If still qualified: up to 3 roster artists, primary = the biggest, with Spotify URL, monthly
+   listeners, latest song, genre and top cities (Instagram/TikTok if easy).
+6. Staff count last (only for leads that passed the checks above): public sources first, the
+   LinkedIn company page only if nothing else works, never from the outreach account. Once per
+   company, copied to all its contacts. Over 50 → `company_too_big`.
+7. One consistent `company_name` per company; a parenthetical distributor or parent goes in notes.
+8. Ready = LinkedIn URL + first name + company; label/management also need a primary artist with
+   name, song and monthly listeners. The database enforces this.
+
 ## Rules
-- Never auto-send anything on LinkedIn: invites, messages, likes, follows and withdrawals are
-  always done by hand. Reading or scraping LinkedIn profile data for research is allowed.
-- Never guess an artist. Only artists confirmed from the company's own website, socials or
-  release credits get added.
-- A lead reaches the queue only when research_status = ready. That requires a LinkedIn URL,
-  first name, company, and a primary artist with a name, a song and monthly listeners. The
-  database enforces this.
+- Never automate anything on LinkedIn. Invites, messages, likes, follows and withdrawals are
+  always done by hand.
+- Never guess an artist. Never research artists for agencies.
+- Disqualify early, before enrichment, and keep disqualified leads with their reason.
+- No pricing in any message.
+- One A/B test at a time.
 - Every button click is logged in activity with the template version, so the A/B stats stay
   clean.
 - Templates live in the database and are edited in the dashboard.
