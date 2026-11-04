@@ -1,14 +1,16 @@
 ---
 name: research-leads
 description: Research and qualify leads in the CRM (company type, distributor/major, agency services, roster, Spotify, staff count) in the user's Chrome and write the results to Supabase. Run locally with `claude --chrome`.
-argument-hint: "[number of leads, default 5 | a LinkedIn URL]"
+argument-hint: "[number of leads, default 5 | enriched [number] | a LinkedIn URL]"
 disable-model-invocation: true
 model: sonnet
 ---
 
 # Research leads
 
-Research: $ARGUMENTS (a number = that many leads, default 5; a LinkedIn URL = only that lead).
+Research: $ARGUMENTS (a number = that many leads, default 5; `enriched` = only leads with
+research_status = enriched, re-checked from step f (full roster) and g (staff); a LinkedIn URL =
+only that lead).
 
 Goal per lead: **qualify or disqualify it as cheaply as possible.** Run the checks in order and
 stop at the first failure. Read `docs/SPEC.md` for the rules; it is the source of truth.
@@ -53,6 +55,13 @@ order by coalesce(country, '') <> 'US',   -- US prospects first
          created_at
 limit 5;   -- or the number given, or: where linkedin_url = '<url>'
 ```
+
+**`enriched` mode:** use `research_status = 'enriched'` instead of the `in (...)` list, and work
+only on those leads (never touch `new` leads in this mode). These leads were already researched
+once, but possibly with an older rule that skipped big artists. Redo **f (full roster)** for
+every one: check the whole roster again and record the biggest artist even if it is over 4M,
+then apply the roster rules. Then **g (staff)**. Re-check a, c and d only if the notes suggest
+something changed.
 
 ## 2. For each lead, in this order (stop at the first failure)
 
