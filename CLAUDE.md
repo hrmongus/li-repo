@@ -66,14 +66,17 @@ Cheapest checks first, so bad leads stop early:
 2. Distributor → disqualify. Major (check the parent company) → disqualify.
 3. Agency: check its services. Sells TikTok fan pages / seeding / UGC / creator campaigns →
    disqualify as `competitor`. No artist research for agencies, ever.
-4. Label / management: find the roster, record the **biggest** artist (any size) and set
+4. Label / management: find the **current** roster (on the company's site/socials, or a release
+   credited to it in the last 2 years), record the **biggest** artist (any size) and set
    `top_artist_listeners`; apply `roster_too_big` (over 4M) and `roster_too_small` (no artist
    with 10k+). Never re-pick a smaller artist to get around this.
 5. If still qualified: up to 3 roster artists, primary = the biggest, with Spotify URL, monthly
-   listeners, latest song, genre and top cities (Instagram/TikTok if easy).
+   listeners, latest song (original single: no remix, cover, live version or album title), genre
+   and top cities (Instagram/TikTok if easy).
 6. Staff count last (only for leads that passed the checks above): public sources first, the
    LinkedIn company page only if nothing else works, never from the outreach account. Once per
-   company, copied to all its contacts. Over 50 → `company_too_big`.
+   company, copied to all its contacts. Over 50 → `company_too_big`. No public headcount and
+   clearly small → ready, `company_staff` left empty. LinkedIn cap: 100 pages a day.
 7. One consistent `company_name` per company; a parenthetical distributor or parent goes in notes.
 8. Ready = LinkedIn URL + first name + company; label/management also need a primary artist with
    name, song and monthly listeners. The database enforces this.

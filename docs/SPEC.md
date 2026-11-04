@@ -29,20 +29,24 @@ Order (stop at the first failure; a disqualified lead keeps its reason):
 4. **Agency:** check its services (website, LinkedIn). If it sells something similar →
    disqualify (`competitor`). Otherwise go to the staff check (8), then ready. Never research
    artists for agencies; their artist fields stay empty.
-5. **Label / management, roster:** find the roster on the company's website and socials.
-   Record the **biggest** artist on the roster (whatever its size) and set
-   `top_artist_listeners`. Then apply `roster_too_big` / `roster_too_small`.
+5. **Label / management, roster:** find the **current** roster: artists listed on the company's
+   own website or socials, or with a release credited to the company in the last 2 years (an old
+   one-off release doesn't count). Record the **biggest** artist on it (whatever its size) and
+   set `top_artist_listeners`. Then apply `roster_too_big` / `roster_too_small`.
 6. **Artists:** add up to 3 roster artists, confirmed from the company's own website, socials or
    release credits (never guessed). Primary = the biggest.
    - **Primary artist fields:** Spotify URL, monthly listeners, latest song title, genre, top
      cities (from the Spotify artist page).
+   - **Latest song** = the latest original single: no remix, cover, live version, mashup or
+     album title.
    - **If easy to find:** Instagram and TikTok URLs and followers.
 7. **Company name:** one consistent `company_name` per company. A parenthetical distributor or
    parent (e.g. "(EMPIRE)") goes in notes, not in the name.
 8. **Staff count, last:** only for leads that passed the checks above. Use the company website
    or other public sources first; visit the LinkedIn company page only if nothing else works, and
    never from the outreach account. Check once per company and copy it to all its contacts.
-   Over 50 → disqualify (`company_too_big`).
+   Over 50 → disqualify (`company_too_big`). No public headcount and clearly a small company →
+   ready, with `company_staff` left empty.
 9. **Ready:** LinkedIn URL, first name and company; label and management leads also need a
    primary artist with a name, song and monthly listeners. The database enforces this.
 

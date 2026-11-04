@@ -28,7 +28,7 @@ stop at the first failure. Read `docs/SPEC.md` for the rules; it is the source o
 ## Hard rules
 - **Never automate anything on LinkedIn.** Read only: never click Connect, Follow, Message, Like,
   Comment or anything that sends or changes something.
-- **LinkedIn is the scarce resource.** At most 25 LinkedIn pages per day, 20–60 seconds apart.
+- **LinkedIn is the scarce resource.** At most 100 LinkedIn pages per day, 20–60 seconds apart.
   Count today's pages from the dated `Research YYYY-MM-DD` lines in notes, and ask if unsure.
   Use LinkedIn only when needed (missing profile URL, missing company, staff count with no other
   source). Stop LinkedIn work for the day at any warning.
@@ -94,7 +94,10 @@ Distribution through a major is not ownership.
 - Otherwise go straight to the staff check (g). No artists.
 
 **f. Label / management → roster.**
-1. Find the roster on the company's website and socials.
+The roster means the **current** roster: artists listed on the company's own website or socials,
+or with a release credited to the company (℗/©) in the last 2 years. An old one-off release
+doesn't count.
+1. Find the current roster on the company's website and socials.
 2. Open each roster artist's Spotify page and find the **biggest**. For a long roster, check the
    best-known names first.
 3. Set `top_artist_listeners` to the biggest artist's exact monthly listeners.
@@ -102,7 +105,9 @@ Distribution through a major is not ownership.
 5. **No artist with 10,000+** → disqualify `roster_too_small`.
 6. **Still qualified:** save up to 3 roster artists. The primary is the biggest.
    - **Primary, from its Spotify page:** `spotify_url`, `monthly_listeners`,
-     `latest_release_title` (latest song), `genre`, `top_cities` (comma-separated, as listed).
+     `latest_release_title`, `genre`, `top_cities` (comma-separated, as listed).
+   - **`latest_release_title` = the latest original single.** No remix, cover, live version,
+     mashup or album title. Use the song name only.
    - **Instagram/TikTok URLs and followers:** only if easy to find.
    - **Others:** name, Spotify URL and listeners.
 
@@ -115,9 +120,12 @@ Distribution through a major is not ownership.
    ```
 2. Otherwise use the company website (team / about page) or other public sources: trade press,
    Crunchbase-style listings.
-3. Only if nothing else works, open the LinkedIn company page (counts toward the cap; never from
-   the outreach account).
+3. Only if nothing else works and the company could plausibly be over 50 staff, open the
+   LinkedIn company page (counts toward the cap; never from the outreach account).
 4. Save it on **every** lead at that company. Over 50 → disqualify `company_too_big`.
+5. **No public headcount** and the company is clearly a small label (or small management
+   company / agency) → leave `company_staff` empty and go on to ready. Don't spend LinkedIn pages
+   just for the count, and never make a number up.
 
 **h. Ready.** LinkedIn URL, first name and company. Label/management also need the primary artist
 with name, song and monthly listeners. The database refuses `ready` otherwise; fix the data, don't
@@ -156,4 +164,4 @@ commit;
 
 ## 4. Report
 End with a table: lead, company, type, outcome (ready / disqualified: reason / open), top artist +
-listeners, staff. Then say how many LinkedIn pages were opened today (cap 25).
+listeners, staff. Then say how many LinkedIn pages were opened today (cap 100).
