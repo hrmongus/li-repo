@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { csvToLeads, parseCsv, pastedUrlsToLeads, personKey, prepareLeads, type LeadInput } from '@/lib/leads';
+import { csvToLeads, isReadyResearch, parseCsv, pastedUrlsToLeads, personKey, prepareLeads, type LeadInput } from '@/lib/leads';
 import { createClient } from '@/lib/supabase/server';
 
 export interface UploadResult {
@@ -11,7 +11,13 @@ export interface UploadResult {
   alreadyThere?: number;
   duplicatesInFile?: number;
   noPerson?: number;
+  /** Researcher CSV: how many of the added leads went straight to ready / disqualified. */
+  ready?: number;
+  disqualified?: number;
 }
+
+/** The lead row as stored: everything except the artist, which goes to the artists table. */
+const leadRow = ({ artist, ...row }: LeadInput) => row; // eslint-disable-line @typescript-eslint/no-unused-vars
 
 const BATCH = 500;
 
@@ -53,21 +59,43 @@ export async function uploadLeads(_prev: UploadResult | null, formData: FormData
     );
   }
 
+  // Insert new leads. Existing people (same LinkedIn URL) are skipped, never overwritten.
+  const inserted: { id: string; linkedin_url: string | null }[] = [];
   let added = 0;
   for (let i = 0; i < withUrl.length; i += BATCH) {
     const { data, error } = await supabase
       .from('leads')
-      .upsert(withUrl.slice(i, i + BATCH), { onConflict: 'linkedin_url', ignoreDuplicates: true })
-      .select('id');
+      .upsert(withUrl.slice(i, i + BATCH).map(leadRow), { onConflict: 'linkedin_url', ignoreDuplicates: true })
+      .select('id, linkedin_url');
     if (error) return { error: error.message, added };
     added += data?.length ?? 0;
+    inserted.push(...(data ?? []));
   }
   let addedWithoutLinkedin = 0;
   for (let i = 0; i < withoutUrl.length; i += BATCH) {
-    const { data, error } = await supabase.from('leads').insert(withoutUrl.slice(i, i + BATCH)).select('id');
+    const { data, error } = await supabase.from('leads').insert(withoutUrl.slice(i, i + BATCH).map(leadRow)).select('id');
     if (error) return { error: error.message, added, addedWithoutLinkedin };
     addedWithoutLinkedin += data?.length ?? 0;
   }
+
+  // Researcher CSV: primary artists for the new leads, then complete leads go to ready.
+  // (A lead without a LinkedIn URL can't be ready, so only the URL rows matter here.)
+  const byUrl = new Map(withUrl.map((l) => [l.linkedin_url, l]));
+  const artists = inserted.flatMap(({ id, linkedin_url }) => {
+    const a = byUrl.get(linkedin_url)?.artist;
+    return a ? [{ ...a, lead_id: id, is_primary: true, checked_at: new Date().toISOString() }] : [];
+  });
+  for (let i = 0; i < artists.length; i += BATCH) {
+    const { error } = await supabase.from('artists').insert(artists.slice(i, i + BATCH));
+    if (error) return { error: `Leads added, but artists failed: ${error.message}`, added };
+  }
+  const readyIds = inserted.filter(({ linkedin_url }) => isReadyResearch(byUrl.get(linkedin_url)!)).map((r) => r.id);
+  for (let i = 0; i < readyIds.length; i += BATCH) {
+    const { error } = await supabase.from('leads').update({ research_status: 'ready' }).in('id', readyIds.slice(i, i + BATCH));
+    if (error) return { error: `Leads added, but marking them ready failed: ${error.message}`, added };
+  }
+  const disqualified = inserted.filter(({ linkedin_url }) => byUrl.get(linkedin_url)?.research_status === 'disqualified').length
+    + withoutUrl.filter((l) => l.research_status === 'disqualified').length;
 
   revalidatePath('/queue');
   revalidatePath('/dashboard');
@@ -77,5 +105,7 @@ export async function uploadLeads(_prev: UploadResult | null, formData: FormData
     alreadyThere: valid.length - added - addedWithoutLinkedin,
     duplicatesInFile,
     noPerson,
+    ready: readyIds.length,
+    disqualified,
   };
 }

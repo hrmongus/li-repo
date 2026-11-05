@@ -86,6 +86,15 @@ Disqualified leads stay in the database (the rules may relax later) and never re
      company_socials), email, country. Every other non-empty column goes into notes.
    - **Rows without a LinkedIn profile** are imported when they name a person. Shared mailboxes
      are skipped. New leads start with research_status = new.
+   - **Researcher CSVs** (external researchers, format in the "Propagandistan lead research guide"
+     doc; header template `imports/leads_template.csv` is shared with them) are recognized by their
+     research columns (`disqualify_reason`, `top_artist_listeners`, `last_li_activity`, `artist_*`…):
+     - a valid `disqualify_reason`, or company_type `distributor` → stored as disqualified;
+     - complete rows → their primary artist is stored and the lead goes to ready (LinkedIn URL,
+       first name, company, `last_li_activity`; labels/management also artist name, song,
+       listeners; artist columns on agency rows are ignored);
+     - anything else stays in research; bad numbers or dates are noted, never fail the upload;
+     - people already in the CRM are skipped, never overwritten.
 
 ## Tables (only these four)
 

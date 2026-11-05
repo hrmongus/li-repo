@@ -16,7 +16,9 @@ export default function UploadPage() {
           Recognized columns: LinkedIn URL (linkedin_url, LinkedIn, LinkedIn profile, url), full name, first
           name, title, company, company_type (label, management, agency, distributor or other; a "segment" column works too), website, company LinkedIn, email, country. Every other
           column is kept in the lead&apos;s notes. Rows without a LinkedIn profile are imported if they name a
-          person (research finds the profile); shared mailboxes without a name are skipped.
+          person (research finds the profile); shared mailboxes without a name are skipped. Researcher CSVs
+          (the format in the research guide) are recognized automatically: complete rows go straight to the
+          queue, rows with a disqualify_reason are stored as disqualified.
         </span>
       </label>
 
@@ -35,6 +37,9 @@ export default function UploadPage() {
           Added <b>{result.added}</b> new leads ({result.addedWithoutLinkedin} of them without a LinkedIn URL yet).
           Already in the CRM: {result.alreadyThere}. Duplicates in this upload: {result.duplicatesInFile}. Skipped
           (no person&apos;s name or LinkedIn profile): {result.noPerson}.
+          {(result.ready ?? 0) + (result.disqualified ?? 0) > 0 && (
+            <> Of the new leads: <b>{result.ready}</b> ready for outreach, {result.disqualified} disqualified, the rest stay in research.</>
+          )}
         </p>
       )}
     </form>

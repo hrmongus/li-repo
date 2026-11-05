@@ -56,6 +56,20 @@ export function parseCsv(text: string): string[][] {
 
 export type CompanyType = 'label' | 'management' | 'agency' | 'distributor' | 'other';
 
+export interface ArtistInput {
+  name: string;
+  spotify_url?: string;
+  monthly_listeners?: number;
+  latest_release_title?: string;
+  genre?: string;
+  top_cities?: string;
+  instagram_url?: string;
+  instagram_followers?: number;
+  tiktok_url?: string;
+  tiktok_followers?: number;
+  notes?: string;
+}
+
 export interface LeadInput {
   linkedin_url: string | null;
   full_name?: string;
@@ -68,9 +82,19 @@ export interface LeadInput {
   email?: string;
   country?: string;
   notes?: string;
+  // Research results (researcher CSV, see the research guide). Not set by plain imports.
+  research_status?: 'disqualified';
+  disqualify_reason?: string;
+  top_artist_listeners?: number;
+  company_staff?: number;
+  last_li_activity?: string | null;
+  li_checked_at?: string;
+  /** Primary artist; stored in the artists table, not on the lead. */
+  artist?: ArtistInput;
 }
 
-type Column = Exclude<keyof LeadInput, 'notes'>;
+type Column = 'linkedin_url' | 'full_name' | 'first_name' | 'title' | 'company_name' | 'company_type'
+  | 'company_website' | 'company_socials' | 'email' | 'country';
 
 // Accepted header names (lowercased, spaces/underscores/dashes/slashes removed) per column.
 const HEADERS: Record<Column, string[]> = {
@@ -86,7 +110,99 @@ const HEADERS: Record<Column, string[]> = {
   country: ['country'],
 };
 
+// Research columns from the researcher CSV (exact names from the research guide).
+const RESEARCH_COLUMNS = [
+  'disqualify_reason', 'top_artist_listeners', 'company_staff', 'last_li_activity',
+  'artist_name', 'artist_spotify_url', 'artist_monthly_listeners', 'artist_latest_song', 'artist_genre',
+  'artist_top_cities', 'artist_instagram_url', 'artist_instagram_followers', 'artist_tiktok_url',
+  'artist_tiktok_followers', 'artist_source_url', 'research_date',
+] as const;
+type ResearchColumn = (typeof RESEARCH_COLUMNS)[number];
+
+export const DISQUALIFY_REASONS = ['major', 'roster_too_big', 'roster_too_small', 'company_too_big', 'distributor', 'competitor'];
+
 const clean = (h: string) => h.toLowerCase().replace(/[\s_/-]/g, '');
+
+/** "250000" / "250,000" / "250 000" -> 250000; anything else (e.g. "250k") -> undefined. */
+function toInt(value: string): number | undefined {
+  const digits = value.replace(/[\s,.]/g, '');
+  return /^\d+$/.test(digits) ? Number(digits) : undefined;
+}
+
+const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+
+/**
+ * Apply the research columns of one row to a lead. Problems (bad numbers, unknown reason) become
+ * notes instead of failing the upload.
+ */
+function applyResearch(lead: LeadInput, get: (c: ResearchColumn) => string, problems: string[]) {
+  const num = (c: ResearchColumn) => {
+    const v = get(c);
+    if (!v) return undefined;
+    const n = toInt(v);
+    if (n === undefined) problems.push(`${c} not a plain number: ${v}`);
+    return n;
+  };
+
+  const reason = get('disqualify_reason').toLowerCase();
+  if (reason && DISQUALIFY_REASONS.includes(reason)) {
+    lead.research_status = 'disqualified';
+    lead.disqualify_reason = reason;
+  } else if (reason) {
+    problems.push(`unknown disqualify_reason: ${reason}`);
+  }
+  // Rule: every distributor is disqualified.
+  if (lead.company_type === 'distributor' && !lead.disqualify_reason) {
+    lead.research_status = 'disqualified';
+    lead.disqualify_reason = 'distributor';
+  }
+
+  lead.top_artist_listeners = num('top_artist_listeners');
+  lead.company_staff = num('company_staff');
+
+  const researchDate = get('research_date');
+  const activity = get('last_li_activity').toLowerCase();
+  if (activity === 'never') {
+    lead.last_li_activity = null;
+    lead.li_checked_at = isDate(researchDate) ? researchDate : new Date().toISOString().slice(0, 10);
+  } else if (activity && isDate(activity)) {
+    lead.last_li_activity = activity;
+    lead.li_checked_at = isDate(researchDate) ? researchDate : new Date().toISOString().slice(0, 10);
+  } else if (activity) {
+    problems.push(`last_li_activity not a date or "never": ${activity}`);
+  }
+
+  // Never research artists for agencies: artist columns on an agency row are ignored.
+  const artistName = get('artist_name');
+  if (artistName && lead.company_type !== 'agency') {
+    lead.artist = {
+      name: artistName,
+      spotify_url: get('artist_spotify_url') || undefined,
+      monthly_listeners: num('artist_monthly_listeners'),
+      latest_release_title: get('artist_latest_song') || undefined,
+      genre: get('artist_genre') || undefined,
+      top_cities: get('artist_top_cities') || undefined,
+      instagram_url: get('artist_instagram_url') || undefined,
+      instagram_followers: num('artist_instagram_followers'),
+      tiktok_url: get('artist_tiktok_url') || undefined,
+      tiktok_followers: num('artist_tiktok_followers'),
+      notes: get('artist_source_url') ? `Source: ${get('artist_source_url')}` : undefined,
+    };
+  }
+}
+
+/**
+ * Ready = everything the database's ready gate checks: LinkedIn URL, first name, company, a
+ * message type, and for labels/management a primary artist with name, song and listeners.
+ */
+export function isReadyResearch(l: LeadInput): boolean {
+  if (l.research_status === 'disqualified') return false;
+  if (!l.linkedin_url || !l.first_name || !l.company_name) return false;
+  if (l.company_type === 'agency') return l.li_checked_at !== undefined;
+  if (l.company_type !== 'label' && l.company_type !== 'management') return false;
+  const a = l.artist;
+  return !!a && !!a.name && !!a.latest_release_title && a.monthly_listeners !== undefined && l.li_checked_at !== undefined;
+}
 
 /** "A · Indie label" -> label, "B · Artist manager" -> management, "C · Agency" -> agency, ... */
 export function toCompanyType(value: string): CompanyType {
@@ -114,7 +230,13 @@ export function csvToLeads(rows: string[][]): LeadInput[] {
   if (index.linkedin_url === undefined && index.full_name === undefined && index.first_name === undefined) {
     throw new Error('Need a LinkedIn URL column (linkedin_url, LinkedIn, profile url, url) or a name column.');
   }
-  const used = new Set(Object.values(index));
+  const researchIndex: Partial<Record<ResearchColumn, number>> = {};
+  for (const col of RESEARCH_COLUMNS) {
+    const i = header.findIndex((h) => clean(h) === clean(col));
+    if (i >= 0) researchIndex[col] = i;
+  }
+  const isResearchFile = Object.keys(researchIndex).length > 0;
+  const used = new Set([...Object.values(index), ...Object.values(researchIndex)]);
   const extra = header.map((h, i) => ({ h: h.trim(), i })).filter(({ i }) => !used.has(i));
 
   return data.map((r) => {
@@ -124,6 +246,13 @@ export function csvToLeads(rows: string[][]): LeadInput[] {
       if (!value) continue;
       if (col === 'company_type') lead.company_type = toCompanyType(value);
       else lead[col] = value;
+    }
+    const problems: string[] = [];
+    if (isResearchFile) {
+      applyResearch(lead, (c) => {
+        const i = researchIndex[c];
+        return i === undefined ? '' : (r[i] ?? '').trim();
+      }, problems);
     }
     if (!lead.first_name && lead.full_name) {
       // "Jane Doe" -> Jane, "Doe, Jane" -> Jane. Research can correct it before the lead is ready.
@@ -135,6 +264,7 @@ export function csvToLeads(rows: string[][]): LeadInput[] {
       .map(({ h, i }) => [h, (r[i] ?? '').trim()] as const)
       .filter(([, v]) => v !== '')
       .map(([h, v]) => `${h}: ${v}`);
+    if (problems.length) notes.push(`Upload check: ${problems.join('; ')}`);
     if (notes.length) lead.notes = notes.join('\n');
     return lead;
   });
