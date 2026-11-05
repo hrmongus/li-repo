@@ -75,7 +75,8 @@ Cheapest checks first, so bad leads stop early:
    `top_artist_listeners`; apply `roster_too_big` (over 4M) and `roster_too_small` (no artist
    with 10k+). Never re-pick a smaller artist to get around this.
 5. If still qualified: up to 3 roster artists, primary = the biggest with a ℗ credit to the
-   company in the last 24 months (a website listing alone isn't enough), with Spotify URL, monthly
+   company in the last 24 months (a website listing alone isn't enough; management: on the
+   company's own roster + any release in the last 24 months), with Spotify URL, monthly
    listeners, latest song (original single: no remix, cover, live version or album title), genre
    and top cities (Instagram/TikTok if easy).
 6. Staff count last (only for leads that passed the checks above): public sources first, the

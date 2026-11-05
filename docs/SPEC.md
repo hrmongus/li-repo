@@ -36,7 +36,9 @@ Order (stop at the first failure; a disqualified lead keeps its reason):
 6. **Artists:** add up to 3 roster artists, confirmed from the company's own website, socials or
    release credits (never guessed). Primary = the biggest, and it needs a release credited to the
    company (℗ line) in the last 24 months: a website listing alone isn't enough. An artist whose
-   newer release is credited to another label has left the roster.
+   newer release is credited to another label has left the roster. Management companies never
+   appear on a ℗ line: their primary artist must be on the company's own roster (website or
+   socials) and have a release on any label in the last 24 months.
    - **Primary artist fields:** Spotify URL, monthly listeners, latest song title, genre, top
      cities (from the Spotify artist page).
    - **Latest song** = the latest original single: no remix, cover, live version, mashup or

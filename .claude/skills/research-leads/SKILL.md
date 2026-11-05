@@ -146,6 +146,9 @@ doesn't count.
    for the primary (label artist pages go stale). An artist whose newer release is credited to
    another label has left: drop them from the roster. Put that release page URL in the primary's
    notes. (For `roster_too_big`, an artist over 4M still counts if they are listed or credited.)
+   **Management companies** never appear on a ℗ line: their primary must be listed on the
+   company's own website or socials **and** have a release (any label) in the last 24 months;
+   put the roster page URL in the notes.
    - **Primary, from its Spotify page:** `spotify_url`, `monthly_listeners`,
      `latest_release_title`, `genre`, `top_cities` (comma-separated, as listed).
    - **`latest_release_title` = the latest original single.** No remix, cover, live version,
