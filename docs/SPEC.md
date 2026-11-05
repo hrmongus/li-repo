@@ -38,19 +38,24 @@ Order (stop at the first failure; a disqualified lead keeps its reason):
    - **Primary artist fields:** Spotify URL, monthly listeners, latest song title, genre, top
      cities (from the Spotify artist page).
    - **Latest song** = the latest original single: no remix, cover, live version, mashup or
-     album title.
+     album title. If recent releases are only features on other artists' songs, use the latest
+     original single even if it's older, and note it.
    - **If easy to find:** Instagram and TikTok URLs and followers.
 7. **Company name:** one consistent `company_name` per company. A parenthetical distributor or
    parent (e.g. "(EMPIRE)") goes in notes, not in the name.
 8. **Staff count, last:** only for leads that passed the checks above. Use the company website
    or other public sources first; visit the LinkedIn company page only if nothing else works, and
    never from the outreach account. Check once per company and copy it to all its contacts.
-   Over 50 → disqualify (`company_too_big`). No public headcount and clearly a small company →
+   Disqualify (`company_too_big`) only when a reliable source (the company's own team page, trade
+   press) clearly shows more than 50 staff. Data-broker estimates and unknown counts pass →
    ready, with `company_staff` left empty.
-9. **LinkedIn activity is not checked by research.** A VA checks it in the CRM as the first
+9. **No website and no confirmable roster** → notes start `NO MATCH: no website or roster
+   found`; research moves on without spending LinkedIn pages on it. Research works companies with
+   a website first (after US-first).
+10. **LinkedIn activity is not checked by research.** A VA checks it in the CRM as the first
    outreach step (`li_check`, below). Research finds profile URLs with a web search first and stops
    all LinkedIn work for the day at any warning, logout or verification request.
-10. **Ready:** LinkedIn URL, first name and company; label and management leads also need a
+11. **Ready:** LinkedIn URL, first name and company; label and management leads also need a
    primary artist with a name, song and monthly listeners. The database enforces this.
 
 | disqualify_reason | Rule |
@@ -58,7 +63,7 @@ Order (stop at the first failure; a disqualified lead keeps its reason):
 | major | Company is owned by Universal, Sony or Warner, including their imprints (Jive, Columbia, Atlantic, Interscope, Republic, Capitol, RCA, Island, Def Jam, Epic, Parlophone, Elektra, etc.). Check the parent company, not just the name. |
 | roster_too_big | Any artist on the roster has more than 4,000,000 monthly listeners. Never re-pick a smaller artist to get around this. |
 | roster_too_small | Labels and management only: no artist on the roster has 10,000+ monthly listeners. |
-| company_too_big | More than 50 staff. |
+| company_too_big | More than 50 staff, shown clearly by a reliable source (own team page, trade press). Estimates and unknowns pass. |
 | distributor | Distributors and distribution platforms (AWAL, UnitedMasters, DistroKid, etc.). A label only distributed by one is fine. All leads with company_type = distributor are disqualified. |
 | competitor | Agencies that already sell TikTok fan pages, TikTok/Reels seeding, UGC or creator campaigns. |
 

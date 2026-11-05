@@ -56,6 +56,7 @@ where research_status in ('new', 'artists_found', 'enriched')
   and status not in ('lost', 'won', 'not_accepted', 'no_reply')
   and coalesce(notes, '') !~ '^(NO MATCH|DUPLICATE)'          -- already decided, don't redo
 order by coalesce(country, '') <> 'US',   -- US prospects first
+         company_website is null,           -- then companies with a website (they qualify fastest)
          linkedin_url is null,              -- then leads that already have a LinkedIn URL
          created_at
 limit 5;   -- or the number given, or: where linkedin_url = '<url>'
@@ -74,6 +75,9 @@ something changed.
 - **No LinkedIn URL:** search the web for `site:linkedin.com/in "<full name>" "<company>"`.
   Accept only a matching name + company; save it as `https://www.linkedin.com/in/<slug>`.
 - **Can't find one:** start the notes with `NO MATCH:` and the reason, and move on.
+- **No website and no confirmable roster** (no site, no socials listing artists, no release
+  credit you can find): start the notes with `NO MATCH: no website or roster found` and move on.
+  Don't spend LinkedIn pages trying to identify the company.
 - **The URL is already on another lead** (unique error): start the notes with
   `DUPLICATE of <url>` and move on.
 - **No company:** open the profile (it counts toward the cap) and read the current job.
@@ -112,7 +116,9 @@ doesn't count.
    - **Primary, from its Spotify page:** `spotify_url`, `monthly_listeners`,
      `latest_release_title`, `genre`, `top_cities` (comma-separated, as listed).
    - **`latest_release_title` = the latest original single.** No remix, cover, live version,
-     mashup or album title. Use the song name only.
+     mashup or album title. Use the song name only. If the artist's recent releases are only
+     features on other artists' songs, use their latest original single even if it's older, and
+     say so in the notes.
    - **Instagram/TikTok URLs and followers:** only if easy to find.
    - **Others:** name, Spotify URL and listeners.
 
@@ -127,10 +133,11 @@ doesn't count.
    Crunchbase-style listings.
 3. Only if nothing else works and the company could plausibly be over 50 staff, open the
    LinkedIn company page (counts toward the cap; never from the outreach account).
-4. Save it on **every** lead at that company. Over 50 → disqualify `company_too_big`.
-5. **No public headcount** and the company is clearly a small label (or small management
-   company / agency) → leave `company_staff` empty and go on to ready. Don't spend LinkedIn pages
-   just for the count, and never make a number up.
+4. Save it on **every** lead at that company. Disqualify `company_too_big` **only when a
+   reliable source clearly shows more than 50 staff** (the company's own team page or a trade
+   press figure). Data-broker estimates ("21–100", "1–10") and unknown counts **pass**: leave
+   `company_staff` empty (or the exact number if a reliable source gives one) and go on to ready.
+5. Don't spend LinkedIn pages just for the count, and never make a number up.
 
 **h. Ready.** LinkedIn URL, first name and company. Label/management also need the primary artist
 with name, song and monthly listeners. The database refuses `ready` otherwise; fix the data, don't

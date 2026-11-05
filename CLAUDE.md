@@ -79,11 +79,15 @@ Cheapest checks first, so bad leads stop early:
    and top cities (Instagram/TikTok if easy).
 6. Staff count last (only for leads that passed the checks above): public sources first, the
    LinkedIn company page only if nothing else works, never from the outreach account. Once per
-   company, copied to all its contacts. Over 50 → `company_too_big`. No public headcount and
-   clearly small → ready, `company_staff` left empty. LinkedIn cap: 100 pages a day.
+   company, copied to all its contacts. `company_too_big` only when a reliable source clearly
+   shows over 50 staff; estimates and unknowns pass (`company_staff` left empty). LinkedIn cap:
+   100 pages a day.
 6b. Research never checks LinkedIn activity (a VA does it at `li_check`), finds profile URLs with
    a web search first, and stops all LinkedIn work for the day at any warning or verification.
 7. One consistent `company_name` per company; a parenthetical distributor or parent goes in notes.
+7b. No website and no confirmable roster → `NO MATCH: no website or roster found`, move on.
+   Companies with a website are researched first. Artist with only features → latest original
+   single even if older (noted).
 8. Ready = LinkedIn URL + first name + company; label/management also need a primary artist with
    name, song and monthly listeners. The database enforces this.
 
