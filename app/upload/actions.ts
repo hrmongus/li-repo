@@ -14,12 +14,89 @@ export interface UploadResult {
   /** Researcher CSV: how many of the added leads went straight to ready / disqualified. */
   ready?: number;
   disqualified?: number;
+  /** Existing leads updated from a backlog export (or researched rows for known people). */
+  updated?: number;
+  /** Rows that couldn't be applied, e.g. their LinkedIn URL already belongs to another lead. */
+  conflicts?: number;
 }
 
 /** The lead row as stored: everything except the artist, which goes to the artists table. */
-const leadRow = ({ artist, ...row }: LeadInput) => row; // eslint-disable-line @typescript-eslint/no-unused-vars
+const leadRow = ({ artist, lead_id, ...row }: LeadInput) => row; // eslint-disable-line @typescript-eslint/no-unused-vars
 
 const BATCH = 500;
+const IN_RESEARCH = ['new', 'artists_found', 'enriched'];
+
+/** True when a researcher filled in research results on this row. */
+const hasResearch = (l: LeadInput) =>
+  !!l.research_status || !!l.artist || l.top_artist_listeners !== undefined || l.company_staff !== undefined || l.li_checked_at !== undefined;
+
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Researcher rows for leads already in the CRM (backlog export, or a person we already have):
+ * update the lead if it is still in research. Ready and disqualified leads, and the outreach
+ * status, are never touched. Only filled cells change anything; notes are appended.
+ */
+async function updateExisting(supabase: Supabase, rows: (LeadInput & { lead_id: string })[]) {
+  const result = { updated: 0, ready: 0, disqualified: 0, notInResearch: 0, conflicts: 0 };
+  const existing = new Map<string, Record<string, any>>(); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const ids = rows.map((r) => r.lead_id);
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('id, research_status, linkedin_url, first_name, company_name, company_type, li_checked_at, notes')
+      .in('id', ids.slice(i, i + BATCH));
+    if (error) throw new Error(error.message);
+    for (const l of data ?? []) existing.set(l.id, l);
+  }
+
+  for (const row of rows) {
+    const old = existing.get(row.lead_id);
+    if (!old || !IN_RESEARCH.includes(old.research_status)) {
+      result.notInResearch++;
+      continue;
+    }
+    const patch: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(leadRow(row))) {
+      if (k === 'notes' || k === 'last_li_activity') continue;
+      if (v !== undefined && v !== null && v !== '') patch[k] = v;
+    }
+    if (row.li_checked_at !== undefined) patch.last_li_activity = row.last_li_activity ?? null;
+    if (row.notes) patch.notes = [old.notes, row.notes].filter(Boolean).join('\n');
+
+    const { error } = await supabase.from('leads').update(patch).eq('id', row.lead_id);
+    if (error) {
+      result.conflicts++; // e.g. the LinkedIn URL already belongs to another lead
+      continue;
+    }
+    result.updated++;
+    if (row.research_status === 'disqualified') {
+      result.disqualified++;
+      continue;
+    }
+
+    if (row.artist) {
+      await supabase.from('artists').delete().eq('lead_id', row.lead_id);
+      const { error: artistError } = await supabase
+        .from('artists')
+        .insert({ ...row.artist, lead_id: row.lead_id, is_primary: true, checked_at: new Date().toISOString() });
+      if (artistError) continue;
+    }
+    const merged: LeadInput = {
+      ...row,
+      linkedin_url: row.linkedin_url ?? old.linkedin_url,
+      first_name: row.first_name ?? old.first_name,
+      company_name: row.company_name ?? old.company_name,
+      company_type: row.company_type ?? old.company_type,
+      li_checked_at: row.li_checked_at ?? old.li_checked_at ?? undefined,
+    };
+    if (isReadyResearch(merged)) {
+      const { error: readyError } = await supabase.from('leads').update({ research_status: 'ready' }).eq('id', row.lead_id);
+      if (!readyError) result.ready++;
+    }
+  }
+  return result;
+}
 
 export async function uploadLeads(_prev: UploadResult | null, formData: FormData): Promise<UploadResult> {
   const leads: LeadInput[] = [];
@@ -33,8 +110,11 @@ export async function uploadLeads(_prev: UploadResult | null, formData: FormData
   if (leads.length === 0) return { error: 'Nothing to upload: choose a CSV or paste LinkedIn URLs.' };
 
   const { valid, noPerson, duplicatesInFile } = prepareLeads(leads);
-  const withUrl = valid.filter((l) => l.linkedin_url);
-  let withoutUrl = valid.filter((l) => !l.linkedin_url);
+  // Rows from a backlog export carry lead_id: they update that lead instead of adding one.
+  const byId = valid.filter((l): l is LeadInput & { lead_id: string } => !!l.lead_id);
+  const fresh = valid.filter((l) => !l.lead_id);
+  const withUrl = fresh.filter((l) => l.linkedin_url);
+  let withoutUrl = fresh.filter((l) => !l.linkedin_url);
 
   const supabase = await createClient();
 
@@ -97,15 +177,38 @@ export async function uploadLeads(_prev: UploadResult | null, formData: FormData
   const disqualified = inserted.filter(({ linkedin_url }) => byUrl.get(linkedin_url)?.research_status === 'disqualified').length
     + withoutUrl.filter((l) => l.research_status === 'disqualified').length;
 
+  // Researched rows for people already in the CRM (same LinkedIn URL): update them like backlog rows.
+  const insertedUrls = new Set(inserted.map((r) => r.linkedin_url));
+  const researchedExisting = withUrl.filter((l) => !insertedUrls.has(l.linkedin_url) && hasResearch(l));
+  const updates = [...byId];
+  for (let i = 0; i < researchedExisting.length; i += BATCH) {
+    const chunk = researchedExisting.slice(i, i + BATCH);
+    const { data, error } = await supabase.from('leads').select('id, linkedin_url').in('linkedin_url', chunk.map((l) => l.linkedin_url!));
+    if (error) return { error: error.message, added };
+    const idByUrl = new Map((data ?? []).map((r) => [r.linkedin_url, r.id]));
+    for (const l of chunk) {
+      const id = idByUrl.get(l.linkedin_url);
+      if (id) updates.push({ ...l, lead_id: id });
+    }
+  }
+  let upd = { updated: 0, ready: 0, disqualified: 0, notInResearch: 0, conflicts: 0 };
+  try {
+    if (updates.length) upd = await updateExisting(supabase, updates);
+  } catch (e) {
+    return { error: `New leads added, but updating existing ones failed: ${(e as Error).message}`, added };
+  }
+
   revalidatePath('/queue');
   revalidatePath('/dashboard');
   return {
     added: added + addedWithoutLinkedin,
     addedWithoutLinkedin,
-    alreadyThere: valid.length - added - addedWithoutLinkedin,
+    alreadyThere: Math.max(0, fresh.length - added - addedWithoutLinkedin - researchedExisting.length),
     duplicatesInFile,
     noPerson,
-    ready: readyIds.length,
-    disqualified,
+    ready: readyIds.length + upd.ready,
+    disqualified: disqualified + upd.disqualified,
+    updated: upd.updated,
+    conflicts: upd.conflicts,
   };
 }

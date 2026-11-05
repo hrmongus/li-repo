@@ -24,7 +24,8 @@ middleware.ts                session refresh; signed-out visitors go to /login
 app/login                    email + password sign-in
 app/queue                    Queue: Due (sorted by queueScore) and All leads (search + filters)
 app/dashboard                status + disqualified counts, sequence with template editor, A/B stats
-app/upload                   CSV upload and pasted LinkedIn URLs
+app/upload                   CSV upload, pasted LinkedIn URLs, exports for researchers
+app/export                   GET /export?type=skip|backlog: CSV downloads for external researchers
 supabase/migrations/         schema (tables, views, RLS, record_step function)
 supabase/seed.sql            message templates (idempotent; never overwrites dashboard edits)
 supabase/config.toml         Supabase CLI config

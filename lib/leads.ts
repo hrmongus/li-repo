@@ -71,6 +71,8 @@ export interface ArtistInput {
 }
 
 export interface LeadInput {
+  /** Set when the row came from a backlog export: the upload updates that lead. */
+  lead_id?: string;
   linkedin_url: string | null;
   full_name?: string;
   first_name?: string;
@@ -109,6 +111,25 @@ const HEADERS: Record<Column, string[]> = {
   email: ['email', 'emailaddress'],
   country: ['country'],
 };
+
+/** The researcher CSV header, in order (the research guide and leads_template.csv). */
+export const RESEARCH_CSV_HEADER = [
+  'linkedin_url', 'full_name', 'first_name', 'title', 'company_name', 'company_type', 'company_website',
+  'company_linkedin', 'email', 'country', 'disqualify_reason', 'top_artist_listeners', 'company_staff',
+  'last_li_activity', 'artist_name', 'artist_spotify_url', 'artist_monthly_listeners', 'artist_latest_song',
+  'artist_genre', 'artist_top_cities', 'artist_instagram_url', 'artist_instagram_followers', 'artist_tiktok_url',
+  'artist_tiktok_followers', 'artist_source_url', 'researcher', 'research_date', 'notes',
+];
+
+/** One CSV line: quotes around cells with a comma, quote or line break. */
+export function toCsvLine(cells: (string | number | null | undefined)[]): string {
+  return cells
+    .map((c) => {
+      const s = c == null ? '' : String(c);
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    })
+    .join(',');
+}
 
 // Research columns from the researcher CSV (exact names from the research guide).
 const RESEARCH_COLUMNS = [
@@ -236,11 +257,16 @@ export function csvToLeads(rows: string[][]): LeadInput[] {
     if (i >= 0) researchIndex[col] = i;
   }
   const isResearchFile = Object.keys(researchIndex).length > 0;
-  const used = new Set([...Object.values(index), ...Object.values(researchIndex)]);
+  const idIndex = header.findIndex((h) => clean(h) === 'leadid');
+  // crm_notes = the CRM's own notes, exported as hints for the researcher; never imported back.
+  const crmNotesIndex = header.findIndex((h) => clean(h) === 'crmnotes');
+  const used = new Set([...Object.values(index), ...Object.values(researchIndex), idIndex, crmNotesIndex]);
   const extra = header.map((h, i) => ({ h: h.trim(), i })).filter(({ i }) => !used.has(i));
 
   return data.map((r) => {
     const lead: LeadInput = { linkedin_url: null };
+    const leadId = idIndex >= 0 ? (r[idIndex] ?? '').trim() : '';
+    if (/^[0-9a-f-]{36}$/i.test(leadId)) lead.lead_id = leadId;
     for (const [col, i] of Object.entries(index) as [Column, number][]) {
       const value = (r[i] ?? '').trim();
       if (!value) continue;

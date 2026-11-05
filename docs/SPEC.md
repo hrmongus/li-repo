@@ -94,7 +94,18 @@ Disqualified leads stay in the database (the rules may relax later) and never re
        first name, company, `last_li_activity`; labels/management also artist name, song,
        listeners; artist columns on agency rows are ignored);
      - anything else stays in research; bad numbers or dates are noted, never fail the upload;
-     - people already in the CRM are skipped, never overwritten.
+     - rows with a `lead_id` (from a backlog export), and researched rows for people already in
+       the CRM, update that lead if it is still in research (new / artists_found / enriched):
+       filled cells only, notes appended, artist replaced. Ready and disqualified leads and the
+       outreach status are never touched. A plain import never overwrites anyone.
+   - **Export for researchers** (Upload page, `/export`):
+     - **Skip list** (`?type=skip`): every lead's LinkedIn URL, name, company, company type,
+       research status and disqualify reason, so a researcher's Claude never re-researches them.
+     - **Backlog** (`?type=backlog`, filters country, company_type, limit ≤ 1000, offset):
+       unresearched leads (label / management / agency / other, not marked NO MATCH or
+       DUPLICATE) in the researcher CSV format with a `lead_id` column first and the CRM's notes
+       as `crm_notes` (hints; never imported back). Researchers fill the research columns and the
+       file is uploaded back. Overlap is avoided by giving each researcher a different filter.
 
 ## Tables (only these four)
 
