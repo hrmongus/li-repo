@@ -17,6 +17,8 @@ export interface CardProps {
   messageType: string | null;
   disqualifyReason: string | null;
   planUrl: string | null;
+  /** LinkedIn activity, e.g. "posted 12 days ago" or "never posted"; null = not checked. */
+  liActivity: string | null;
   score: number | null;
   artist: { name: string; listeners: number | null; extra: string[] } | null;
   ready: boolean;
@@ -86,6 +88,12 @@ export function LeadCard(p: CardProps) {
           {p.artist.extra.map((e) => (
             <span key={e} className="text-slate-500"> · {e}</span>
           ))}
+        </div>
+      )}
+
+      {p.liActivity && (
+        <div className={`mt-1 text-xs ${p.liActivity === 'never posted' ? 'text-slate-400' : 'text-slate-600'}`}>
+          LinkedIn: {p.liActivity}
         </div>
       )}
 

@@ -6,6 +6,7 @@ import {
   queueScore,
   renderMessage,
   step,
+  daysBetween,
   todayStr,
   type Artist,
   type Lead,
@@ -18,6 +19,14 @@ type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 
 const RESEARCH = ['new', 'artists_found', 'enriched', 'ready', 'disqualified'];
 const COMPANY_TYPES = ['label', 'management', 'agency', 'distributor', 'other'];
+
+/** "posted 12 days ago" / "never posted" / null (not checked yet). */
+function activityLabel(last: string | null, checked: string | null, today: string): string | null {
+  if (!checked) return null;
+  if (!last) return 'never posted';
+  const days = daysBetween(last, today);
+  return days <= 0 ? 'posted today' : `posted ${days} day${days === 1 ? '' : 's'} ago`;
+}
 
 function slug(url: string | null): string {
   if (!url) return '(no name)';
@@ -68,6 +77,7 @@ function toCard(l: Row, artist: Artist | null, templates: Template[], today: str
     messageType: type,
     disqualifyReason: l.disqualify_reason,
     planUrl: l.plan_url,
+    liActivity: activityLabel(l.last_li_activity, l.li_checked_at, today),
     score: withScore && ready ? queueScore(lead, today) : null,
     artist: artist ? { name: artist.name, listeners: artist.monthly_listeners, extra } : null,
     ready,

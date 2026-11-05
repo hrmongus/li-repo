@@ -1,7 +1,7 @@
 ---
 name: research-leads
-description: Research and qualify leads in the CRM (company type, distributor/major, agency services, roster, Spotify, staff count) in the user's Chrome and write the results to Supabase. Run locally with `claude --chrome`.
-argument-hint: "[number of leads, default 5 | enriched [number] | a LinkedIn URL]"
+description: Research and qualify leads in the CRM (company type, distributor/major, agency services, roster, Spotify, staff count, LinkedIn activity) in the user's Chrome and write the results to Supabase. Run locally with `claude --chrome`.
+argument-hint: "[number of leads, default 5 | enriched [number] | activity [number] | a LinkedIn URL]"
 disable-model-invocation: true
 model: sonnet
 ---
@@ -9,8 +9,8 @@ model: sonnet
 # Research leads
 
 Research: $ARGUMENTS (a number = that many leads, default 5; `enriched` = only leads with
-research_status = enriched, re-checked from step f (full roster) and g (staff); a LinkedIn URL =
-only that lead).
+research_status = enriched, re-checked from step f (full roster) and g (staff); `activity` = only
+step h (LinkedIn activity) for ready leads not checked yet; a LinkedIn URL = only that lead).
 
 Goal per lead: **qualify or disqualify it as cheaply as possible.** Run the checks in order and
 stop at the first failure. Read `docs/SPEC.md` for the rules; it is the source of truth.
@@ -62,6 +62,15 @@ once, but possibly with an older rule that skipped big artists. Redo **f (full r
 every one: check the whole roster again and record the biggest artist even if it is over 4M,
 then apply the roster rules. Then **g (staff)**. Re-check a, c and d only if the notes suggest
 something changed.
+
+**`activity` mode:** only step h, for ready leads that haven't been checked yet. Change nothing
+else (research_status stays `ready`):
+```sql
+select id, full_name, company_name, linkedin_url from leads
+where research_status = 'ready' and li_checked_at is null and linkedin_url is not null
+  and coalesce(notes, '') not like 'DEMO LEAD%'
+order by created_at limit 100;   -- or the number given
+```
 
 ## 2. For each lead, in this order (stop at the first failure)
 
@@ -127,7 +136,17 @@ doesn't count.
    company / agency) → leave `company_staff` empty and go on to ready. Don't spend LinkedIn pages
    just for the count, and never make a number up.
 
-**h. Ready.** LinkedIn URL, first name and company. Label/management also need the primary artist
+**h. LinkedIn activity, last** (only for leads that passed everything above; never disqualifies).
+1. Open `https://www.linkedin.com/in/<slug>/recent-activity/all/` (1 LinkedIn page, counts toward
+   the cap; research account only). Read only, as always.
+2. Find the date of their most recent **post, repost or comment**. Reactions (likes) alone don't
+   count. LinkedIn shows relative ages ("3w", "5mo", "1yr"): convert to a date (approximate is fine).
+3. Save `last_li_activity` = that date (or null if there is none at all) and
+   `li_checked_at` = today.
+4. Inactive people stay in. The queue ranks recently active people first, and people who never
+   posted, reposted or commented last.
+
+**i. Ready.** LinkedIn URL, first name and company. Label/management also need the primary artist
 with name, song and monthly listeners. The database refuses `ready` otherwise; fix the data, don't
 work around it.
 
@@ -139,6 +158,7 @@ line: `Research YYYY-MM-DD: <what you found>`.
 begin;
 update leads set full_name = ..., first_name = ..., title = ..., company_name = ...,
   company_type = ..., company_website = ..., linkedin_url = ..., top_artist_listeners = ...,
+  last_li_activity = ..., li_checked_at = current_date,
   notes = ...
 where id = '<lead id>';
 -- label / management that passed the roster checks:
@@ -164,4 +184,5 @@ commit;
 
 ## 4. Report
 End with a table: lead, company, type, outcome (ready / disqualified: reason / open), top artist +
-listeners, staff. Then say how many LinkedIn pages were opened today (cap 100).
+listeners, staff, last LinkedIn activity. Then say how many LinkedIn pages were opened today (cap
+100).

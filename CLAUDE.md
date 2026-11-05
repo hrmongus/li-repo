@@ -55,7 +55,8 @@ New migration: `npx supabase migration new <name>`, then edit the file in `supab
 - **Changing the sequence:** edit `FLOW` in `lib/outreach.ts` and the template rows. Statuses are
   plain text, but the `queue` view (final statuses) and `template_stats` view (`connected`,
   `replied`, `call_booked`) hard-code a few names; renaming those needs a migration.
-- **Company cap** (max 2 active contacts per company) is computed in the `queue` view.
+- **Company cap** (max 4 active contacts per company, most LinkedIn-active first) is computed in
+  the `queue` view.
 - **Time zone:** "today" is Europe/Bratislava, both in SQL (`app_today()`) and TypeScript
   (`todayStr()`).
 - **Queue order:** done only by `queueScore()`. The `queue` view is unsorted.
@@ -77,6 +78,8 @@ Cheapest checks first, so bad leads stop early:
    LinkedIn company page only if nothing else works, never from the outreach account. Once per
    company, copied to all its contacts. Over 50 → `company_too_big`. No public headcount and
    clearly small → ready, `company_staff` left empty. LinkedIn cap: 100 pages a day.
+6b. LinkedIn activity, last: date of the last post, repost or comment (`last_li_activity`, null =
+   none) and `li_checked_at`. Never disqualifies; ranks the queue and the company slots.
 7. One consistent `company_name` per company; a parenthetical distributor or parent goes in notes.
 8. Ready = LinkedIn URL + first name + company; label/management also need a primary artist with
    name, song and monthly listeners. The database enforces this.

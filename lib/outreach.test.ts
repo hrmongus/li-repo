@@ -8,6 +8,8 @@ const lead = (over: Partial<Parameters<typeof queueScore>[0]> = {}) => ({
   next_action_at: today,
   company_type: 'label' as const,
   top_artist_listeners: 50_000,
+  last_li_activity: null,
+  li_checked_at: null,
   ...over,
 });
 
@@ -30,6 +32,20 @@ describe('queueScore', () => {
     expect(queueScore(lead({ next_action_at: addDays(today, -5) }), today)).toBe(25);
     expect(queueScore(lead({ next_action_at: addDays(today, -30) }), today)).toBe(25);
     expect(queueScore(lead({ next_action_at: addDays(today, 2) }), today)).toBe(15);
+  });
+
+  it('ranks LinkedIn activity: recent > older > not checked > never posted', () => {
+    const checked = { li_checked_at: today };
+    const recent = queueScore(lead({ ...checked, last_li_activity: addDays(today, -10) }), today);
+    const ninety = queueScore(lead({ ...checked, last_li_activity: addDays(today, -60) }), today);
+    const sixMonths = queueScore(lead({ ...checked, last_li_activity: addDays(today, -180) }), today);
+    const unchecked = queueScore(lead(), today);
+    const never = queueScore(lead({ ...checked, last_li_activity: null }), today);
+    expect([recent, ninety, sixMonths, unchecked, never]).toEqual([25, 20, 15, 15, -5]);
+    // never posting is the lowest by far: below a weaker lead that posted six months ago
+    const weakButPosted = queueScore(lead({ ...checked, last_li_activity: addDays(today, -180), top_artist_listeners: 10_000 }), today);
+    const strongNever = queueScore(lead({ ...checked, top_artist_listeners: 3_000_000 }), today);
+    expect(weakButPosted).toBeGreaterThan(strongNever);
   });
 
   it('puts replied leads above any non-replied lead', () => {

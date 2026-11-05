@@ -27,6 +27,10 @@ export interface Lead {
   status: string;
   next_action_at: DateStr | null;
   top_artist_listeners: number | null;
+  /** Date of the lead's last LinkedIn post, repost or comment. null = none found (or not checked). */
+  last_li_activity: DateStr | null;
+  /** When research checked LinkedIn activity. null = not checked yet. */
+  li_checked_at: DateStr | null;
 }
 
 export interface Artist {
@@ -87,7 +91,7 @@ const lost: Button = { id: 'lost', label: 'Lost', to: 'lost', dueInDays: null };
 
 export const FLOW: Record<string, Step> = {
   to_do: {
-    action: 'Warm up: view profile, follow company, like or comment on a recent post',
+    action: 'Warm up: view profile and follow the company. If they posted recently, like or comment on it',
     buttons: [{ id: 'done', label: 'Done', to: 'warmed_up', dueInDays: 2 }],
     canReply: false,
   },
@@ -313,9 +317,22 @@ export function renderMessage(template: Template, lead: Lead, artist: Artist | n
 
 // ---------- Queue score ----------
 
+/**
+ * LinkedIn activity (last post, repost or comment). Any activity beats none; never posting is
+ * by far the lowest. Not checked yet = neutral.
+ */
+export function activityPoints(lead: Pick<Lead, 'last_li_activity' | 'li_checked_at'>, today: DateStr): number {
+  if (!lead.li_checked_at) return 0; // not checked yet
+  if (!lead.last_li_activity) return -20; // checked: never posted, reposted or commented
+  const days = daysBetween(lead.last_li_activity, today);
+  if (days <= 30) return 10;
+  if (days <= 90) return 5;
+  return 0; // older activity: still better than none
+}
+
 /** Higher = shown first. All tuning happens here. */
 export function queueScore(
-  lead: Pick<Lead, 'status' | 'next_action_at' | 'company_type' | 'top_artist_listeners'>,
+  lead: Pick<Lead, 'status' | 'next_action_at' | 'company_type' | 'top_artist_listeners' | 'last_li_activity' | 'li_checked_at'>,
   today: DateStr,
 ): number {
   let score = 0;
@@ -329,6 +346,8 @@ export function queueScore(
     else if (top >= 100_000) score += 25;
     else if (top >= 10_000) score += 15; // under 10k is disqualified
   }
+
+  score += activityPoints(lead, today);
 
   if (lead.next_action_at) {
     const overdueDays = daysBetween(lead.next_action_at, today);

@@ -47,7 +47,10 @@ Order (stop at the first failure; a disqualified lead keeps its reason):
    never from the outreach account. Check once per company and copy it to all its contacts.
    Over 50 → disqualify (`company_too_big`). No public headcount and clearly a small company →
    ready, with `company_staff` left empty.
-9. **Ready:** LinkedIn URL, first name and company; label and management leads also need a
+9. **LinkedIn activity, last:** open the lead's activity page (1 LinkedIn page, research account
+   only) and save the date of the last post, repost or comment (`last_li_activity`, null if none)
+   and `li_checked_at`. Never disqualifies; it ranks the queue and the company slots.
+10. **Ready:** LinkedIn URL, first name and company; label and management leads also need a
    primary artist with a name, song and monthly listeners. The database enforces this.
 
 | disqualify_reason | Rule |
@@ -95,6 +98,8 @@ Disqualified leads stay in the database (the rules may relax later) and never re
 | company_website, company_socials | |
 | company_staff | int, staff count (checked once per company) |
 | top_artist_listeners | int, monthly listeners of the biggest artist on the roster |
+| last_li_activity | date of the last LinkedIn post, repost or comment; null = none found |
+| li_checked_at | date research checked LinkedIn activity; null = not checked yet |
 | linkedin_url | unique when present, normalized on write; required for ready |
 | email, country | |
 | research_status | `new` \| `artists_found` \| `enriched` \| `ready` \| `disqualified` |
@@ -144,22 +149,25 @@ inserts the row in one transaction. Sends store template_key, version and the fi
 "Today" means the date in Europe/Bratislava.
 
 ## Company cap
-At most **2 active contacts per company** in the queue, computed in the `queue` view (no extra
-status). Companies are grouped by `company_name` (case and spaces ignored).
+At most **4 active contacts per company** in the queue, computed in the `queue` view (no extra
+status). Many contacts barely use LinkedIn, so the cap is 4 and the slots go to the most active
+people. Companies are grouped by `company_name` (case and spaces ignored).
 - **Active** = ready and not `no_reply`, `not_accepted` or `lost`. A `won` lead keeps its slot.
 - **Who gets the slots:**
   1. Contacts already in the sequence (past `to_do`) keep theirs.
-  2. Then by title: Founder / Owner / CEO / President / Managing Director, then Label Manager /
+  2. Then by LinkedIn activity (last post, repost or comment): active in the last 90 days, most
+     recent first; then older activity; then not checked yet; then never posted (last by far).
+  3. Then by title: Founder / Owner / CEO / President / Managing Director, then Label Manager /
      General Manager, then Head of Marketing, then others.
-  3. Then the oldest lead.
-- **The rest stay ready but hidden.** A hidden contact shows up when one of the two reaches
+  4. Then the oldest lead.
+- **The rest stay ready but hidden.** A hidden contact shows up when one of the four reaches
   `no_reply`, `not_accepted` or `lost`.
 
 ## Outreach statuses (13)
 
 | Status | Setter's next action | Message | Button(s) → next status (next due) |
 |---|---|---|---|
-| to_do | Warm up: view profile, follow company, like or comment on a recent post | – | Done → warmed_up (+2 days) |
+| to_do | Warm up: view profile and follow the company; if they posted recently, like or comment on it (the card shows their last LinkedIn activity) | – | Done → warmed_up (+2 days) |
 | warmed_up | Send connection request | invite_* | Sent → connection_requested (+21) |
 | connection_requested | Wait. If due: withdraw the invite | – | Accepted → connected (today) · Withdrawn → **not_accepted** |
 | connected | Send message 1 | msg1_* | Sent → message_1_sent (+4) |
@@ -198,6 +206,8 @@ status). Companies are grouped by `company_name` (case and spaces ignored).
 - replied leads always on top (+1000)
 - labels and management, by `top_artist_listeners`: 1M–4M = 30, 100k–1M = 25, 10k–100k = 15
 - agencies = 15
+- LinkedIn activity (last post, repost or comment): last 30 days +10, 31–90 days +5, older 0,
+  not checked yet 0, never posted −20 (lowest by far)
 - overdue: +2 per day, max +10
 
 ## Rules
