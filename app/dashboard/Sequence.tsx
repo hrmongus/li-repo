@@ -122,7 +122,7 @@ function Step({
     <div id={`step-${status}`} className={`scroll-mt-4 rounded-lg border p-4 ${final ? 'border-slate-200 bg-slate-100' : 'border-slate-300 bg-white'}`}>
       <div className="flex flex-wrap items-baseline gap-x-3">
         {num && (
-          <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-900 px-1.5 text-xs font-semibold text-white">
+          <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-red px-1.5 text-xs font-semibold text-white">
             {num}
           </span>
         )}

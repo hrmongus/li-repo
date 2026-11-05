@@ -1,6 +1,36 @@
 @import "tailwindcss";
 
+/* Propagandistan palette, taken from the landing page: paper, ink, signal red, blue.
+   The slate scale is re-tinted to warm greys, so every existing grey picks up the brand. */
+@theme {
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+
+  --color-paper: #f1e9d6;
+  --color-ink: #141210;
+  --color-brand-red: #d8301f;
+  --color-brand-blue: #1f4eb0;
+
+  --color-white: #fbf7ee; /* cards: a lighter paper instead of pure white */
+
+  --color-slate-50: #f7f1e4;
+  --color-slate-100: #ece3cf;
+  --color-slate-200: #ddd2bb;
+  --color-slate-300: #c9bda3;
+  --color-slate-400: #a39780;
+  --color-slate-500: #7a705e;
+  --color-slate-600: #5c5446;
+  --color-slate-700: #3f3a31;
+  --color-slate-800: #29251f;
+  --color-slate-900: #141210;
+
+  --color-indigo-100: #dfe6f6;
+  --color-indigo-700: #1f4eb0;
+  --color-indigo-800: #193f8f;
+
+  --color-red-600: #d8301f;
+}
+
 body {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--color-paper);
+  color: var(--color-ink);
 }

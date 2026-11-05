@@ -153,7 +153,7 @@ export function LeadCard(p: CardProps) {
                     }),
                   )
                 }
-                className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+                className="rounded bg-brand-red px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"
               >
                 {b.label}
               </button>
