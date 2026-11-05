@@ -90,6 +90,10 @@ Cheapest checks first, so bad leads stop early:
    single even if older (noted).
 8. Ready = LinkedIn URL + first name + company; label/management also need a primary artist with
    name, song and monthly listeners. The database enforces this.
+9. Once per company: an existing company result (disqualified for a company reason, or ready) is
+   copied to the other contacts; otherwise the checks run once and go to every open contact.
+   Unresolved leads researched in the last 24 hours aren't re-picked. A run does the whole batch
+   and stops only for blockers.
 
 ## Rules
 - Never automate anything on LinkedIn. Invites, messages, likes, follows and withdrawals are

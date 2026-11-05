@@ -57,6 +57,14 @@ Order (stop at the first failure; a disqualified lead keeps its reason):
    all LinkedIn work for the day at any warning, logout or verification request.
 11. **Ready:** LinkedIn URL, first name and company; label and management leads also need a
    primary artist with a name, song and monthly listeners. The database enforces this.
+12. **Once per company:** research groups leads by company. If a contact there is already
+   disqualified for a company reason or already ready, that result (type, reason, artists,
+   `top_artist_listeners`, staff) is copied to the other open contacts; otherwise the company
+   checks run once and the result goes to every open contact. Only the LinkedIn URL and first
+   name are per person.
+13. **No repeats, no pauses:** unresolved leads researched in the last 24 hours (a `Research`
+   note dated today or yesterday) are not picked again. A research run works through its whole
+   batch and stops only for blockers (missing setup, a LinkedIn warning, a database error).
 
 | disqualify_reason | Rule |
 |---|---|
