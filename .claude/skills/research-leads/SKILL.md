@@ -141,7 +141,11 @@ doesn't count.
 3. Set `top_artist_listeners` to the biggest artist's exact monthly listeners.
 4. **Over 4,000,000** → disqualify `roster_too_big`.
 5. **No artist with 10,000+** → disqualify `roster_too_small`.
-6. **Still qualified:** save up to 3 roster artists. The primary is the biggest.
+6. **Still qualified:** save up to 3 roster artists. The primary is the biggest **with a release
+   credited to the company (℗ line) in the last 24 months**. A website listing alone is not enough
+   for the primary (label artist pages go stale). An artist whose newer release is credited to
+   another label has left: drop them from the roster. Put that release page URL in the primary's
+   notes. (For `roster_too_big`, an artist over 4M still counts if they are listed or credited.)
    - **Primary, from its Spotify page:** `spotify_url`, `monthly_listeners`,
      `latest_release_title`, `genre`, `top_cities` (comma-separated, as listed).
    - **`latest_release_title` = the latest original single.** No remix, cover, live version,
