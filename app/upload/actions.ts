@@ -145,7 +145,7 @@ export async function uploadLeads(_prev: UploadResult | null, formData: FormData
   for (let i = 0; i < withUrl.length; i += BATCH) {
     const { data, error } = await supabase
       .from('leads')
-      .upsert(withUrl.slice(i, i + BATCH).map(leadRow), { onConflict: 'linkedin_url', ignoreDuplicates: true })
+      .upsert(withUrl.slice(i, i + BATCH).map(leadRow), { onConflict: 'linkedin_url', ignoreDuplicates: true, defaultToNull: false })
       .select('id, linkedin_url');
     if (error) return { error: error.message, added };
     added += data?.length ?? 0;
@@ -153,7 +153,7 @@ export async function uploadLeads(_prev: UploadResult | null, formData: FormData
   }
   let addedWithoutLinkedin = 0;
   for (let i = 0; i < withoutUrl.length; i += BATCH) {
-    const { data, error } = await supabase.from('leads').insert(withoutUrl.slice(i, i + BATCH).map(leadRow)).select('id');
+    const { data, error } = await supabase.from('leads').insert(withoutUrl.slice(i, i + BATCH).map(leadRow), { defaultToNull: false }).select('id');
     if (error) return { error: error.message, added, addedWithoutLinkedin };
     addedWithoutLinkedin += data?.length ?? 0;
   }
@@ -166,7 +166,7 @@ export async function uploadLeads(_prev: UploadResult | null, formData: FormData
     return a ? [{ ...a, lead_id: id, is_primary: true, checked_at: new Date().toISOString() }] : [];
   });
   for (let i = 0; i < artists.length; i += BATCH) {
-    const { error } = await supabase.from('artists').insert(artists.slice(i, i + BATCH));
+    const { error } = await supabase.from('artists').insert(artists.slice(i, i + BATCH), { defaultToNull: false });
     if (error) return { error: `Leads added, but artists failed: ${error.message}`, added };
   }
   const readyIds = inserted.filter(({ linkedin_url }) => isReadyResearch(byUrl.get(linkedin_url)!)).map((r) => r.id);
