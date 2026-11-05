@@ -45,7 +45,7 @@ export default async function DashboardPage() {
   const templates = (templatesRes.data ?? []) as EditorTemplate[];
 
   // A/B table: per message step, one row per type + version, then an all-types row per version.
-  const messageSteps = pathFrom('to_do').filter((s) => stats.some((r) => r.step === s));
+  const messageSteps = pathFrom('li_check').filter((s) => stats.some((r) => r.step === s));
 
   return (
     <div className="flex flex-col gap-8">

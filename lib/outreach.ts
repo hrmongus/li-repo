@@ -75,6 +75,8 @@ export interface Button {
   sends?: boolean;
   /** true = "Plan sent": status stays, leads.plan_sent_at is set. */
   planSent?: boolean;
+  /** LinkedIn check: true = active, false = inactive (sets li_checked_at / last_li_activity). */
+  liActive?: boolean;
 }
 
 export interface Step {
@@ -90,6 +92,15 @@ export interface Step {
 const lost: Button = { id: 'lost', label: 'Lost', to: 'lost', dueInDays: null };
 
 export const FLOW: Record<string, Step> = {
+  li_check: {
+    action:
+      'LinkedIn check (VA): open the profile → Activity. Any post, repost or comment in the last 6 months?',
+    buttons: [
+      { id: 'active', label: 'Active', to: 'to_do', dueInDays: 0, liActive: true },
+      { id: 'inactive', label: 'Inactive', to: 'to_do', dueInDays: 0, liActive: false },
+    ],
+    canReply: false,
+  },
   to_do: {
     action: 'Warm up: view profile and follow the company. If they posted recently, like or comment on it',
     buttons: [{ id: 'done', label: 'Done', to: 'warmed_up', dueInDays: 2 }],
@@ -178,6 +189,8 @@ export interface Transition {
   to_status: string;
   next_action_at: DateStr | null;
   plan_sent: boolean;
+  /** LinkedIn check result; null = not a check click. */
+  li_active: boolean | null;
 }
 
 export function clickButton(status: string, buttonId: string, today: DateStr): Transition {
@@ -188,13 +201,14 @@ export function clickButton(status: string, buttonId: string, today: DateStr): T
     to_status: button.to,
     next_action_at: button.dueInDays === null ? null : addDays(today, button.dueInDays),
     plan_sent: button.planSent === true,
+    li_active: button.liActive ?? null,
   };
 }
 
 /** The "Replied" button: stops the sequence, status = replied, due today. */
 export function clickReplied(status: string, today: DateStr): Transition {
   if (!step(status).canReply) throw new Error(`"Replied" is not available on status "${status}"`);
-  return { from_status: status, to_status: 'replied', next_action_at: today, plan_sent: false };
+  return { from_status: status, to_status: 'replied', next_action_at: today, plan_sent: false, li_active: null };
 }
 
 // ---------- Dates ----------

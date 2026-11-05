@@ -47,9 +47,9 @@ Order (stop at the first failure; a disqualified lead keeps its reason):
    never from the outreach account. Check once per company and copy it to all its contacts.
    Over 50 → disqualify (`company_too_big`). No public headcount and clearly a small company →
    ready, with `company_staff` left empty.
-9. **LinkedIn activity, last:** open the lead's activity page (1 LinkedIn page, research account
-   only) and save the date of the last post, repost or comment (`last_li_activity`, null if none)
-   and `li_checked_at`. Never disqualifies; it ranks the queue and the company slots.
+9. **LinkedIn activity is not checked by research.** A VA checks it in the CRM as the first
+   outreach step (`li_check`, below). Research finds profile URLs with a web search first and stops
+   all LinkedIn work for the day at any warning, logout or verification request.
 10. **Ready:** LinkedIn URL, first name and company; label and management leads also need a
    primary artist with a name, song and monthly listeners. The database enforces this.
 
@@ -164,7 +164,8 @@ inserts the row in one transaction. Sends store template_key, version and the fi
 
 ### Access
 - Email + password sign-in. Accounts are created by hand in Supabase; public sign-ups are off.
-- Admin and setter have the same rights; RLS lets any signed-in user read and write everything.
+- Admin, setter and VAs have the same rights; RLS lets any signed-in user read and write
+  everything. A VA gets their own account (created by hand in Supabase) for the LinkedIn check.
 
 "Today" means the date in Europe/Bratislava.
 
@@ -172,22 +173,25 @@ inserts the row in one transaction. Sends store template_key, version and the fi
 At most **4 active contacts per company** in the queue, computed in the `queue` view (no extra
 status). Many contacts barely use LinkedIn, so the cap is 4 and the slots go to the most active
 people. Companies are grouped by `company_name` (case and spaces ignored).
-- **Active** = ready and not `no_reply`, `not_accepted` or `lost`. A `won` lead keeps its slot.
+- **Leads at `li_check` are outside the cap:** every ready contact is shown for the LinkedIn
+  check, so the VA checks them all. The cap applies from `to_do` on.
+- **Active** = ready, past `li_check`, and not `no_reply`, `not_accepted` or `lost`. A `won` lead
+  keeps its slot.
 - **Who gets the slots:**
   1. Contacts already in the sequence (past `to_do`) keep theirs.
-  2. Then by LinkedIn activity (last post, repost or comment): active in the last 90 days, most
-     recent first; then older activity; then not checked yet; then never posted (last by far).
+  2. Then by LinkedIn activity: active (most recent first), then not checked, then inactive.
   3. Then by title: Founder / Owner / CEO / President / Managing Director, then Label Manager /
      General Manager, then Head of Marketing, then others.
   4. Then the oldest lead.
 - **The rest stay ready but hidden.** A hidden contact shows up when one of the four reaches
   `no_reply`, `not_accepted` or `lost`.
 
-## Outreach statuses (13)
+## Outreach statuses (14)
 
-| Status | Setter's next action | Message | Button(s) → next status (next due) |
+| Status | Next action | Message | Button(s) → next status (next due) |
 |---|---|---|---|
-| to_do | Warm up: view profile and follow the company; if they posted recently, like or comment on it (the card shows their last LinkedIn activity) | – | Done → warmed_up (+2 days) |
+| li_check | **VA:** open the profile → Activity. Any post, repost or comment in the last 6 months? | – | Active → to_do (today) · Inactive → to_do (today) |
+| to_do | Warm up: view profile and follow the company; if they posted recently, like or comment on it (the card shows active / inactive) | – | Done → warmed_up (+2 days) |
 | warmed_up | Send connection request | invite_* | Sent → connection_requested (+21) |
 | connection_requested | Wait. If due: withdraw the invite | – | Accepted → connected (today) · Withdrawn → **not_accepted** |
 | connected | Send message 1 | msg1_* | Sent → message_1_sent (+4) |
@@ -203,6 +207,10 @@ people. Companies are grouped by `company_name` (case and spaces ignored).
   hand.
 - **"Plan sent":** keeps status `replied`, sets `plan_sent_at`, makes the lead due in 3 days, and
   logs an activity row.
+- **LinkedIn check (`li_check`):** the first step for every ready lead (new leads start there by
+  default). Active sets `li_checked_at` = `last_li_activity` = today; Inactive sets
+  `li_checked_at` = today and `last_li_activity` = null. Done in the CRM by a VA with their own
+  login, by hand on their own LinkedIn. No research account needed for it.
 - **Activity:** every button click writes one row.
 
 ## Message type and templates
@@ -226,8 +234,9 @@ people. Companies are grouped by `company_name` (case and spaces ignored).
 - replied leads always on top (+1000)
 - labels and management, by `top_artist_listeners`: 1M–4M = 30, 100k–1M = 25, 10k–100k = 15
 - agencies = 15
-- LinkedIn activity (last post, repost or comment): last 30 days +10, 31–90 days +5, older 0,
-  not checked yet 0, never posted −20 (lowest by far)
+- LinkedIn activity: active (last activity within 30 days) +10, 31–90 days +5, older 0, not
+  checked yet 0, inactive / never posted −20 (lowest by far). A VA "Active" counts as activity on
+  the check day, so it scores +10 for a month, then fades.
 - overdue: +2 per day, max +10
 
 ## Rules

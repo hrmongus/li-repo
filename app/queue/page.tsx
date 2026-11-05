@@ -20,12 +20,16 @@ type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 const RESEARCH = ['new', 'artists_found', 'enriched', 'ready', 'disqualified'];
 const COMPANY_TYPES = ['label', 'management', 'agency', 'distributor', 'other'];
 
-/** "posted 12 days ago" / "never posted" / null (not checked yet). */
+/**
+ * "active (checked 4 Nov)" / "inactive (checked 4 Nov)" / null (not checked yet).
+ * A VA check stores the check date as the activity date, so show active/inactive, not "days ago".
+ */
 function activityLabel(last: string | null, checked: string | null, today: string): string | null {
   if (!checked) return null;
-  if (!last) return 'never posted';
-  const days = daysBetween(last, today);
-  return days <= 0 ? 'posted today' : `posted ${days} day${days === 1 ? '' : 's'} ago`;
+  const ago = daysBetween(checked, today);
+  const when = ago <= 0 ? 'checked today' : `checked ${ago} day${ago === 1 ? '' : 's'} ago`;
+  if (!last) return `inactive (${when})`;
+  return daysBetween(last, checked) <= 180 ? `active (${when})` : `inactive (${when})`;
 }
 
 function slug(url: string | null): string {

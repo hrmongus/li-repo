@@ -215,14 +215,15 @@ function applyResearch(lead: LeadInput, get: (c: ResearchColumn) => string, prob
 /**
  * Ready = everything the database's ready gate checks: LinkedIn URL, first name, company, a
  * message type, and for labels/management a primary artist with name, song and listeners.
+ * LinkedIn activity isn't needed: a VA checks it in the CRM (the li_check step).
  */
 export function isReadyResearch(l: LeadInput): boolean {
   if (l.research_status === 'disqualified') return false;
   if (!l.linkedin_url || !l.first_name || !l.company_name) return false;
-  if (l.company_type === 'agency') return l.li_checked_at !== undefined;
+  if (l.company_type === 'agency') return true;
   if (l.company_type !== 'label' && l.company_type !== 'management') return false;
   const a = l.artist;
-  return !!a && !!a.name && !!a.latest_release_title && a.monthly_listeners !== undefined && l.li_checked_at !== undefined;
+  return !!a && !!a.name && !!a.latest_release_title && a.monthly_listeners !== undefined;
 }
 
 /** "A · Indie label" -> label, "B · Artist manager" -> management, "C · Agency" -> agency, ... */

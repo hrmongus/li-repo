@@ -15,6 +15,7 @@ async function record(t: Transition & { lead_id: string; template_key?: string |
     p_version: t.version ?? null,
     p_text_sent: t.text_sent ?? null,
     p_plan_sent: t.plan_sent,
+    p_li_active: t.li_active,
   });
   if (error) return { error: error.message };
   revalidatePath('/queue');

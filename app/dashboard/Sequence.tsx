@@ -19,6 +19,7 @@ export interface TemplateStat {
 const TYPES: MessageType[] = ['label', 'management', 'agency'];
 
 const LABELS: Record<string, string> = {
+  li_check: 'LinkedIn check (VA)',
   to_do: 'Warm up',
   warmed_up: 'Connection request',
   connection_requested: 'Waiting for accept',
@@ -187,7 +188,7 @@ function Overview({ statuses }: { statuses: string[] }) {
 
 export function Sequence({ templates, stats, counts }: { templates: EditorTemplate[]; stats: TemplateStat[]; counts: Map<string, number> }) {
   const statMap = new Map(stats.map((s) => [`${s.key}:${s.version}`, s]));
-  const main = pathFrom('to_do');
+  const main = pathFrom('li_check');
   const other = Object.keys(FLOW).filter((s) => !main.includes(s) && !FINAL_STATUSES.includes(s));
   const ends = FINAL_STATUSES.filter((s) => !main.includes(s));
   const orphan = templates.filter((t) => !FLOW[t.status]);
