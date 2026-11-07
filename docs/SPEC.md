@@ -84,6 +84,9 @@ Disqualified leads stay in the database (the rules may relax later) and never re
 ## Views
 
 1. **Queue (setter).**
+   - **Daily counter** on top: connection requests sent today out of 15 ("Sent" clicks on
+     `warmed_up`), reset at midnight Europe/Bratislava. Red at 15. It only informs; nothing is
+     blocked.
    - **Due** (default): ready leads due today or overdue, within the company cap, not in a
      final status, sorted by queue score.
    - **Each card shows:** name, title, company, a message-type badge (label / management /

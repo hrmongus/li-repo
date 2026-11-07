@@ -218,6 +218,20 @@ export function todayStr(now: Date = new Date()): DateStr {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(now);
 }
 
+/** Connection requests the setter may send per day (counter on the Queue page). */
+export const DAILY_INVITE_LIMIT = 15;
+
+/** Midnight of `day` in Europe/Bratislava, as a UTC ISO timestamp (handles summer time). */
+export function dayStartUtc(day: DateStr): string {
+  const guess = new Date(`${day}T00:00:00Z`);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIME_ZONE, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(guess);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+  const offset = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute')) - guess.getTime();
+  return new Date(guess.getTime() - offset).toISOString();
+}
+
 function toUtc(d: DateStr): number {
   const [y, m, day] = d.split('-').map(Number);
   return Date.UTC(y, m - 1, day);

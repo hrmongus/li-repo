@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, pickVersion, queueScore } from './outreach';
+import { addDays, dayStartUtc, pickVersion, queueScore } from './outreach';
+
+describe('dayStartUtc', () => {
+  it('is Bratislava midnight in winter (UTC+1) and summer (UTC+2)', () => {
+    expect(dayStartUtc('2026-11-07')).toBe('2026-11-06T23:00:00.000Z');
+    expect(dayStartUtc('2026-07-01')).toBe('2026-06-30T22:00:00.000Z');
+  });
+});
 
 const today = '2026-11-04';
 

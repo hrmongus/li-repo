@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import {
+  DAILY_INVITE_LIMIT,
+  dayStartUtc,
   FLOW,
   messageType,
   pickTemplate,
@@ -107,6 +109,16 @@ export default async function QueuePage({
   if (tErr) throw new Error(tErr.message);
   const templates = (templateRows ?? []) as Template[];
 
+  // Connection requests sent today (each "Sent" click on warmed_up), reset at midnight Bratislava time.
+  const { count: invitesToday, error: iErr } = await supabase
+    .from('activity')
+    .select('id', { count: 'exact', head: true })
+    .eq('from_status', 'warmed_up')
+    .eq('to_status', 'connection_requested')
+    .gte('created_at', dayStartUtc(today));
+  if (iErr) throw new Error(iErr.message);
+  const invites = invitesToday ?? 0;
+
   let cards: CardProps[];
   if (view === 'due') {
     const { data, error } = await supabase.from('queue').select('*');
@@ -139,6 +151,18 @@ export default async function QueuePage({
 
   return (
     <div className="flex flex-col gap-4">
+      <div
+        className={`rounded-lg border px-4 py-2 text-sm ${
+          invites >= DAILY_INVITE_LIMIT ? 'border-red-300 bg-red-50 text-red-800' : 'border-slate-200 bg-white'
+        }`}
+      >
+        Connection requests today:{' '}
+        <span className="font-semibold">
+          {invites}/{DAILY_INVITE_LIMIT}
+        </span>
+        {invites >= DAILY_INVITE_LIMIT && <span> · daily limit reached, send the rest tomorrow</span>}
+        <span className="ml-2 text-xs text-slate-500">(resets at midnight, Slovakia time)</span>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         {tab('due', 'Due')}
         {tab('all', 'All leads')}
