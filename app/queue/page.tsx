@@ -16,6 +16,7 @@ import {
 } from '@/lib/outreach';
 import { createClient } from '@/lib/supabase/server';
 import { LeadCard, type CardProps } from './LeadCard';
+import { StatusFilter } from './StatusFilter';
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -120,12 +121,18 @@ export default async function QueuePage({
   const invites = invitesToday ?? 0;
 
   let cards: CardProps[];
+  // Due view: statuses present today with counts (in sequence order), for the status dropdown.
+  let statusOptions: { status: string; count: number }[] = [];
   if (view === 'due') {
     const { data, error } = await supabase.from('queue').select('*');
     if (error) throw new Error(error.message);
-    cards = (data ?? [])
+    const all = (data ?? [])
       .map((r) => toCard(r, r.artist_id ? toArtist({ ...r, name: r.artist_name }) : null, templates, today, true))
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    statusOptions = Object.keys(FLOW)
+      .map((status) => ({ status, count: all.filter((c) => c.status === status).length }))
+      .filter((o) => o.count > 0 || o.status === sp.status);
+    cards = sp.status ? all.filter((c) => c.status === sp.status) : all;
   } else {
     let query = supabase.from('leads').select('*, artists(*)').order('created_at', { ascending: false }).limit(200);
     const q = (sp.q ?? '').replace(/[,()%*\\]/g, ' ').trim();
@@ -166,6 +173,7 @@ export default async function QueuePage({
       <div className="flex flex-wrap items-center gap-2">
         {tab('due', 'Due')}
         {tab('all', 'All leads')}
+        {view === 'due' && <StatusFilter key={sp.status ?? ''} value={sp.status ?? ''} options={statusOptions} />}
         <span className="ml-auto text-sm text-slate-500">
           {cards.length} {view === 'due' ? 'due today' : 'leads'}
           {view === 'all' && cards.length === 200 ? ' (first 200, narrow the search)' : ''}

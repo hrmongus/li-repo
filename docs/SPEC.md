@@ -88,7 +88,7 @@ Disqualified leads stay in the database (the rules may relax later) and never re
      `warmed_up`), reset at midnight Europe/Bratislava. Red at 15. It only informs; nothing is
      blocked.
    - **Due** (default): ready leads due today or overdue, within the company cap, not in a
-     final status, sorted by queue score.
+     final status, sorted by queue score. A status dropdown (with counts) narrows it to one step.
    - **Each card shows:** name, title, company, a message-type badge (label / management /
      agency), the primary artist and listeners (label and management), the current status, the
      next action, the message for that step (pre-filled, editable before copying), the buttons,
