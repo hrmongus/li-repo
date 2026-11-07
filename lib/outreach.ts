@@ -103,7 +103,7 @@ export const FLOW: Record<string, Step> = {
   },
   to_do: {
     action: 'Warm up: view profile and follow the company. If they posted recently, like or comment on it',
-    buttons: [{ id: 'done', label: 'Done', to: 'warmed_up', dueInDays: 2 }],
+    buttons: [{ id: 'done', label: 'Done', to: 'warmed_up', dueInDays: 1 }],
     canReply: false,
   },
   warmed_up: {

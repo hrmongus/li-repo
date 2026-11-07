@@ -208,7 +208,7 @@ people. Companies are grouped by `company_name` (case and spaces ignored).
 | Status | Next action | Message | Button(s) → next status (next due) |
 |---|---|---|---|
 | li_check | **VA:** open the profile → Activity. Any post, repost or comment in the last 6 months? | – | Active → to_do (today) · Inactive → to_do (today) |
-| to_do | Warm up: view profile and follow the company; if they posted recently, like or comment on it (the card shows active / inactive) | – | Done → warmed_up (+2 days) |
+| to_do | Warm up: view profile and follow the company; if they posted recently, like or comment on it (the card shows active / inactive) | – | Done → warmed_up (+1 day) |
 | warmed_up | Send connection request | invite_* | Sent → connection_requested (+21) |
 | connection_requested | Wait. If due: withdraw the invite | – | Accepted → connected (today) · Withdrawn → **not_accepted** |
 | connected | Send message 1 | msg1_* | Sent → message_1_sent (+4) |
