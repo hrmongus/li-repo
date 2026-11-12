@@ -69,6 +69,11 @@ Order (stop at the first failure; a disqualified lead keeps its reason):
 13. **No repeats, no pauses:** unresolved leads researched in the last 24 hours (a `Research`
    note dated today or yesterday) are not picked again. A research run works through its whole
    batch and stops only for blockers (missing setup, a LinkedIn warning, a database error).
+14. **Email, always:** research looks for every kept contact's work email on public pages
+   (company contact/team pages, press/booking pages, Instagram/Linktree/Bandcamp contacts). A
+   personal work email first; otherwise the company's general address, noted as generic. Never
+   guessed from a pattern, never from paid or login-only finder tools. Not found = empty; it
+   never blocks ready. (Emails are stored only; there is no email outreach yet.)
 
 | disqualify_reason | Rule |
 |---|---|

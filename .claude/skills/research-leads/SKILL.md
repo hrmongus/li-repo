@@ -175,6 +175,16 @@ doesn't count.
    `company_staff` empty (or the exact number if a reliable source gives one) and go on to ready.
 5. Don't spend LinkedIn pages just for the count, and never make a number up.
 
+**g2. Email, always** (every contact you keep, including disqualified ones you already have).
+Look for the person's work email on public pages: the company's contact / team / about page,
+press or booking pages, the company's or roster artists' Instagram / Linktree / Bandcamp contact.
+- A personal work email (jane@label.com) goes in `email`. If there is none, use the company's
+  general contact address (info@, hello@, contact@) and add `email is generic` to the notes.
+- **Never guess or build an address from a pattern** (firstname@company.com), and never use
+  email-finder tools or sites that need a login or payment.
+- Keep an email already on the lead unless you found a personal one to replace a generic one.
+- Not found → leave it empty. A missing email never blocks `ready`.
+
 **h. Ready.** LinkedIn URL, first name and company. Label/management also need the primary artist
 with name, song and monthly listeners. The database refuses `ready` otherwise; fix the data, don't
 work around it.
@@ -189,7 +199,7 @@ line: `Research YYYY-MM-DD: <what you found>`.
 ```sql
 begin;
 update leads set full_name = ..., first_name = ..., title = ..., company_name = ...,
-  company_type = ..., company_website = ..., linkedin_url = ..., top_artist_listeners = ...,
+  company_type = ..., company_website = ..., linkedin_url = ..., email = ..., top_artist_listeners = ...,
   notes = ...
 where id = '<lead id>';
 -- label / management that passed the roster checks:

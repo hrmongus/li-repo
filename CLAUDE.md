@@ -96,6 +96,9 @@ Cheapest checks first, so bad leads stop early:
    copied to the other contacts; otherwise the checks run once and go to every open contact.
    Unresolved leads researched in the last 24 hours aren't re-picked. A run does the whole batch
    and stops only for blockers.
+10. Email, always: every kept contact's work email from public pages (personal first, else the
+   company's general address noted as generic). Never guessed from a pattern, never from paid or
+   login-only finder tools. Missing email never blocks ready.
 
 ## Rules
 - Never automate anything on LinkedIn. Invites, messages, likes, follows and withdrawals are
