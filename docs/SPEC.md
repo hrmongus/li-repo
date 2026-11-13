@@ -29,16 +29,17 @@ Order (stop at the first failure; a disqualified lead keeps its reason):
 4. **Agency:** check its services (website, LinkedIn). If it sells something similar →
    disqualify (`competitor`). Otherwise go to the staff check (8), then ready. Never research
    artists for agencies; their artist fields stay empty.
-5. **Label / management, roster:** find the **current** roster: artists listed on the company's
-   own website or socials, or with a release credited to the company in the last 2 years (an old
-   one-off release doesn't count). Record the **biggest** artist on it (whatever its size) and
-   set `top_artist_listeners`. Then apply `roster_too_big` / `roster_too_small`.
-6. **Artists:** add up to 3 roster artists, confirmed from the company's own website, socials or
-   release credits (never guessed). Primary = the biggest, and it needs a release credited to the
-   company (℗ line) in the last 24 months: a website listing alone isn't enough. An artist whose
-   newer release is credited to another label has left the roster. Management companies never
-   appear on a ℗ line: their primary artist must be on the company's own roster (website or
-   socials) and have a release on any label in the last 24 months.
+5. **Label / management, roster:** find the **current** roster. An artist is on it only if the
+   company's own website roster page lists them, or they are the main artist of a release whose
+   ℗ line names the company from the last 18 months (prefer 12). Never proof: old press, older
+   credits, features on another artist's release, LinkedIn job history, Wikipedia or directory
+   lists. An artist whose newer release is credited elsewhere has left. Management companies
+   need the roster page (plus a release on any label in the last 18 months). Record the
+   **biggest** current artist (whatever its size) and set `top_artist_listeners`. Then apply
+   `roster_too_big` / `roster_too_small`. **Roster can't be confirmed → the lead stays
+   `enriched`** (no artist, note `roster unconfirmed: …`), never ready.
+6. **Artists:** add up to 3 current-roster artists (never guessed), each with its proof URL in
+   notes. Primary = the biggest.
    - **Primary artist fields:** Spotify URL, monthly listeners, latest song title, genre, top
      cities (from the Spotify artist page).
    - **Latest song** = the latest original single: no remix, cover, live version, mashup or

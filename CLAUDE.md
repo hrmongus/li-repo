@@ -70,13 +70,15 @@ Cheapest checks first, so bad leads stop early:
 2. Distributor → disqualify. Major (check the parent company) → disqualify.
 3. Agency: check its services. Sells TikTok fan pages / seeding / UGC / creator campaigns →
    disqualify as `competitor`. No artist research for agencies, ever.
-4. Label / management: find the **current** roster (on the company's site/socials, or a release
-   credited to it in the last 2 years), record the **biggest** artist (any size) and set
+4. Label / management: find the **current** roster: the company's own website roster page, or
+   the artist is the main artist on a release ℗ the company in the last 18 months. Never proof:
+   old press, older credits, features, LinkedIn job history. Roster unconfirmed → lead stays
+   `enriched`, no artist. Record the **biggest** current artist (any size) and set
    `top_artist_listeners`; apply `roster_too_big` (over 4M) and `roster_too_small` (no artist
    with 10k+). Never re-pick a smaller artist to get around this.
-5. If still qualified: up to 3 roster artists, primary = the biggest with a ℗ credit to the
-   company in the last 24 months (a website listing alone isn't enough; management: on the
-   company's own roster + any release in the last 24 months), with Spotify URL, monthly
+5. If still qualified: up to 3 current-roster artists (proof URL in notes), primary = the
+   biggest (management: on the company's own roster page + any release in the last 18 months),
+   with Spotify URL, monthly
    listeners, latest song (original single: no remix, cover, live version or album title), genre
    and top cities (Instagram/TikTok if easy).
 6. Staff count last (only for leads that passed the checks above): public sources first, the

@@ -44,9 +44,10 @@ each researcher with this file.
    block on any site, stop and ask the person; never try to get around it.
 2. **Browser check.** Work only in the desktop app's built-in browser. If it disconnects or looks
    different afterwards, stop and ask.
-3. **Never guess.** An artist counts only if the company's own website or socials list it, or a
-   release credits the company (the ℗/© line on a Spotify release page). Every number must be
-   read from a page today, never from memory or a search snippet. Unknown = leave the cell empty.
+3. **Never guess.** An artist counts only if they are on the company's **current** roster (C5).
+   Old press mentions, older credits, features on someone else's release, LinkedIn job history,
+   Wikipedia or directory lists are never proof. Every number must be read from a page today,
+   never from memory or a search snippet. Unknown = leave the cell empty.
 4. **Never skip a big artist.** Always find the biggest artist on the current roster, whatever
    its size. Never pick a smaller one to get around the 4M limit.
 5. **Never research artists for agencies.** Leave every `artist_` column empty on agency rows.
@@ -151,15 +152,19 @@ back to Step 1.
    TikTok/Reels seeding, UGC or creator campaigns → `competitor`. Otherwise skip C5 and go to C6.
    No artist research.
 5. **C5 Roster** (labels and management only):
-   - Current roster = artists listed on the company's own website or socials, plus artists with a
-     release credited to the company (℗ line) in the last 24 months.
-   - **The primary artist needs a recent credit:** a release whose ℗ line names the company, from
-     the last 24 months. A website listing alone isn't enough (label artist pages go stale). If an
-     artist listed on the site has a newer release credited to another label, they have left:
-     drop them from the roster. An artist over 4M who is still credited still counts.
-   - **Management companies** never appear on a ℗ line. Their primary artist must be listed on the
-     company's own website or socials **and** have a release (on any label) in the last 24
-     months. `artist_source_url` = the company's roster page.
+   - **Current roster only.** An artist is on it only if (a) the company's own website roster /
+     artists page lists them today, or (b) they are the **main** artist of a release whose ℗ line
+     names the company, released in the last 18 months (prefer the last 12).
+   - **Never proof:** old press mentions, credits older than 18 months, a feature on another
+     artist's release (a Drugdealer single billed "Drugdealer, Weyes Blood" doesn't put Weyes
+     Blood on the label), LinkedIn job history, Wikipedia or directory lists. An artist whose
+     newer release is credited to another label has left, even if an old roster page lists them.
+     An artist over 4M on the same proof still counts.
+   - **Management companies** never appear on a ℗ line: their artists need the roster page (a),
+     plus a release on any label in the last 18 months.
+   - **Roster can't be confirmed:** leave every `artist_` column and `top_artist_listeners`
+     empty and write `roster unconfirmed: <why>` in `notes`. The row then stays in research and
+     never goes to the queue.
    - Open each roster artist's Spotify page. For a long roster, check the best-known names first,
      then keep going until you're confident none is bigger.
    - `top_artist_listeners` = the biggest artist's exact monthly listeners.
@@ -214,9 +219,9 @@ back to Step 1.
   find, even if older, and say so in `notes`.
 - **`artist_top_cities`:** the cities listed on the Spotify artist page, comma-separated, in order
   (`Los Angeles, London, Berlin`).
-- **`artist_source_url`:** the Spotify release page whose ℗ line names the company, released in
-  the last 24 months. A roster page alone isn't enough for a label's primary artist; for a
-  management company, use its roster page.
+- **`artist_source_url`:** the proof the primary artist is on the current roster: the company's
+  roster page, or the Spotify release page (main artist, ℗ naming the company, last 18 months).
+  For a release, also put "℗ <year> <company>, <release date>" in `notes`.
 - **Numbers:** plain digits exactly as shown on the page (`1234567`). No `k`, `M`, commas or
   spaces.
 - **Dates:** `YYYY-MM-DD`. Leave `last_li_activity` empty (a VA checks activity in the CRM).

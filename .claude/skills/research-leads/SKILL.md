@@ -37,9 +37,9 @@ stop at the first failure. Read `docs/SPEC.md` for the rules; it is the source o
   source). Find profile URLs with a web search (`site:linkedin.com/in`) before opening LinkedIn.
 - **Stop all LinkedIn work for the day at any warning, CAPTCHA, logout or phone/ID verification
   request,** and tell the user. Never try to get past it. Spotify and company-site work can go on.
-- **Never guess an artist.** Only artists confirmed by the company's own website or socials, or
-  by a release credit naming the company (the ℗/© line on a Spotify release page). Put the
-  source URL in the artist's notes.
+- **Never guess an artist.** Only artists confirmed on the company's **current** roster (see f).
+  Old press mentions, past credits, features on someone else's release, LinkedIn job history,
+  Wikipedia or directory lists are never proof. Put the proof URL in the artist's notes.
 - **Never research artists for agencies.** Their artist fields stay empty.
 - **Never skip a big artist.** Always record the biggest artist on the roster, whatever its
   size. Never re-pick a smaller artist to get around `roster_too_big`.
@@ -132,23 +132,30 @@ Distribution through a major is not ownership.
 - Otherwise go straight to the staff check (g). No artists.
 
 **f. Label / management → roster.**
-The roster means the **current** roster: artists listed on the company's own website or socials,
-or with a release credited to the company (℗/©) in the last 2 years. An old one-off release
-doesn't count.
-1. Find the current roster on the company's website and socials.
+The roster means the **current** roster. An artist is on it only with one of these proofs:
+- **Roster page:** the company's own website roster / artists page lists them today; or
+- **Recent release:** they are the **main** artist of a release whose ℗ line names the company,
+  released in the last 18 months (prefer the last 12).
+
+Never proof: old press mentions, credits older than 18 months, a feature on another artist's
+release (e.g. "Drugdealer, Weyes Blood" on a Drugdealer single does not put Weyes Blood on the
+label), LinkedIn job history, Wikipedia or directory lists, search snippets. An artist whose newer
+release is credited to another label has left, even if an old roster page still lists them.
+Management companies never appear on a ℗ line: their artists need the roster page proof (and a
+release on any label in the last 18 months).
+**Roster can't be confirmed → no artist:** set `research_status = 'enriched'`, save no artists,
+and note `roster unconfirmed: <why>`. Never make the lead ready on a guess.
+1. Find the current roster on the company's website roster page and its releases of the last
+   18 months.
 2. Open each roster artist's Spotify page and find the **biggest**. For a long roster, check the
    best-known names first.
 3. Set `top_artist_listeners` to the biggest artist's exact monthly listeners.
 4. **Over 4,000,000** → disqualify `roster_too_big`.
 5. **No artist with 10,000+** → disqualify `roster_too_small`.
-6. **Still qualified:** save up to 3 roster artists. The primary is the biggest **with a release
-   credited to the company (℗ line) in the last 24 months**. A website listing alone is not enough
-   for the primary (label artist pages go stale). An artist whose newer release is credited to
-   another label has left: drop them from the roster. Put that release page URL in the primary's
-   notes. (For `roster_too_big`, an artist over 4M still counts if they are listed or credited.)
-   **Management companies** never appear on a ℗ line: their primary must be listed on the
-   company's own website or socials **and** have a release (any label) in the last 24 months;
-   put the roster page URL in the notes.
+6. **Still qualified:** save up to 3 current-roster artists. The primary is the biggest. In each
+   artist's notes, write the proof: `roster page <url>` or `℗ <year> <company> on <release url>
+   ("<title>", <release date>)`. (For `roster_too_big`, an artist over 4M counts on the same
+   proof.)
    - **Primary, from its Spotify page:** `spotify_url`, `monthly_listeners`,
      `latest_release_title`, `genre`, `top_cities` (comma-separated, as listed).
    - **`latest_release_title` = the latest original single.** No remix, cover, live version,
