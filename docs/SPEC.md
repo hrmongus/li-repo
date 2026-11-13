@@ -99,6 +99,10 @@ Disqualified leads stay in the database (the rules may relax later) and never re
      agency), the primary artist and listeners (label and management), the current status, the
      next action, the message for that step (pre-filled, editable before copying), the buttons,
      and a link to `plan_url` when set.
+   - **Show all** (button on every card): every lead and artist column, empty ones too. Contact,
+     company, research numbers, notes and artist fields can be edited and saved there; status,
+     due date, research status, disqualify reason and the LinkedIn-check dates are shown
+     read-only (they change only through the buttons and research).
    - **All leads:** search by name or company, filter by status, research status and company
      type. Ready leads show the same card and buttons whatever their due date.
 2. **Dashboard.**

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { checkMessage, type Button } from '@/lib/outreach';
 import { clickStepAction, repliedAction } from './actions';
+import { LeadDetails } from './LeadDetails';
 
 export interface CardProps {
   leadId: string;
@@ -79,6 +80,10 @@ export function LeadCard(p: CardProps) {
           {p.nextActionAt && <span className="text-slate-500">due {p.nextActionAt}</span>}
           {p.score != null && <span className="text-slate-400">score {p.score}</span>}
         </span>
+      </div>
+
+      <div className="mt-1">
+        <LeadDetails leadId={p.leadId} />
       </div>
 
       {p.artist && (
