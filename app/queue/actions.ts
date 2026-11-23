@@ -20,15 +20,6 @@ async function record(t: Transition & { lead_id: string; sender: string | null; 
     p_sender: t.sender,
   };
   const { error } = await supabase.rpc('record_step', args);
-  // TEMPORARY until migration 20261123010000_sender_profiles is applied: the old record_step has no
-  // p_sender, so retry without it. Remove once the migration is live.
-  if (error?.code === 'PGRST202') {
-    const { p_sender: _ignored, ...legacy } = args; // eslint-disable-line @typescript-eslint/no-unused-vars
-    const retry = await supabase.rpc('record_step', legacy);
-    if (retry.error) return { error: retry.error.message };
-    revalidatePath('/queue');
-    return { error: null };
-  }
   if (error) return { error: error.message };
   revalidatePath('/queue');
   return { error: null };

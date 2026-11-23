@@ -66,7 +66,6 @@ function toArtist(a: Row | null | undefined): Artist | null {
 function blockedFor(l: Row, acting: string | null): string | null {
   if (l.status === 'li_check') return null; // LinkedIn check is VA work, not profile work
   if (!acting) return 'Pick your profile tab (Andrej, Narek or Mher) to work this lead.';
-  if (!('sender' in l)) return null; // TEMPORARY: sender migration not applied yet, no owners to check
   if (l.sender && l.sender !== acting) return `Belongs to ${l.sender}: work it from the ${l.sender} tab.`;
   if (!l.sender && l.company_sender && l.company_sender !== acting) return `${l.company_sender} works this company.`;
   if (!l.sender && l.status !== 'to_do') return 'No profile assigned yet.';
@@ -137,18 +136,13 @@ export default async function QueuePage({
   const templates = (templateRows ?? []) as Template[];
 
   // Connection requests sent today per profile ("Sent" clicks on warmed_up), reset at midnight Bratislava time.
-  const inviteQuery = (cols: string) =>
-    supabase.from('activity').select(cols).eq('from_status', 'warmed_up').eq('to_status', 'connection_requested')
-      .gte('created_at', dayStartUtc(today));
-  let { data: inviteRows, error: iErr } = (await inviteQuery('sender')) as { data: { sender: string | null }[] | null; error: { message: string } | null };
-  // TEMPORARY until the sender migration is applied: no activity.sender yet, so all sends were Andrej's.
-  const migrated = !iErr;
-  if (iErr) {
-    const legacy = await inviteQuery('id');
-    if (legacy.error) throw new Error(legacy.error.message);
-    inviteRows = (legacy.data ?? []).map(() => ({ sender: 'Andrej' }));
-    iErr = null;
-  }
+  const { data: inviteRows, error: iErr } = await supabase
+    .from('activity')
+    .select('sender')
+    .eq('from_status', 'warmed_up')
+    .eq('to_status', 'connection_requested')
+    .gte('created_at', dayStartUtc(today));
+  if (iErr) throw new Error(iErr.message);
   const invites = SENDERS.map((x) => ({ ...x, sent: (inviteRows ?? []).filter((r) => r.sender === x.name).length }));
 
   let cards: CardProps[];
@@ -170,10 +164,7 @@ export default async function QueuePage({
       ready.push(...((page ?? []) as HoldLead[]));
       if (!page || page.length < 1000) break;
     }
-    // TEMPORARY until the sender migration is applied: no sender columns yet, so every profile tab
-    // shows all outreach leads (the old single-account queue).
-    const mine = (data ?? []).filter((r) =>
-      migrated ? inTab(r, qtab) : qtab === 'li_check' ? r.status === 'li_check' : r.status !== 'li_check');
+    const mine = (data ?? []).filter((r) => inTab(r, qtab));
     const rows = mine.filter((r) => !onHold(r as HoldLead, ready));
     held = mine.length - rows.length;
     const all = rows
