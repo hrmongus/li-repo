@@ -58,6 +58,9 @@ New migration: `npx supabase migration new <name>`, then edit the file in `supab
   `replied`, `call_booked`) hard-code a few names; renaming those needs a migration.
 - **LinkedIn check (`li_check`)** is the first outreach step: a VA clicks Active / Inactive in the
   CRM (`record_step(..., p_li_active)`). New leads start there by default.
+- **Sender profiles** (Andrej 20/day, Narek and Mher 15/day; `SENDERS` in `lib/outreach.ts`):
+  a lead is claimed by the profile that clicks its warm-up (`leads.sender`), one profile per
+  company; `record_step(..., p_sender)` enforces it. The queue has a tab per profile (`inTab()`).
 - **Company cap** (max 4 active contacts per company, most LinkedIn-active first) is computed in
   the `queue` view; leads at `li_check` are outside the cap so the VA sees all of them.
 - **Time zone:** "today" is Europe/Bratislava, both in SQL (`app_today()`) and TypeScript

@@ -218,8 +218,36 @@ export function todayStr(now: Date = new Date()): DateStr {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(now);
 }
 
-/** Connection requests the setter may send per day (counter on the Queue page). */
-export const DAILY_INVITE_LIMIT = 15;
+/**
+ * LinkedIn profiles that do the outreach, with each account's daily connection-request limit
+ * (counter on the Queue page). A lead belongs to the profile that did its warm-up.
+ */
+export const SENDERS = [
+  { name: 'Andrej', dailyLimit: 20 },
+  { name: 'Narek', dailyLimit: 15 },
+  { name: 'Mher', dailyLimit: 15 },
+] as const;
+export type Sender = (typeof SENDERS)[number]['name'];
+export const isSender = (s: unknown): s is Sender => SENDERS.some((x) => x.name === s);
+
+/** Queue tab: one per profile, plus the shared LinkedIn check (VA). */
+export type QueueTab = Sender | 'li_check';
+
+/**
+ * Does a due lead belong in this tab?
+ * - LinkedIn check tab: leads at li_check (not profile work).
+ * - Profile tab: that profile's own leads, plus unclaimed warm-ups (to_do, no sender) at companies
+ *   no other profile owns yet (one profile per company).
+ */
+export function inTab(
+  lead: { status: string; sender: string | null; company_sender: string | null },
+  tab: QueueTab,
+): boolean {
+  if (tab === 'li_check') return lead.status === 'li_check';
+  if (lead.status === 'li_check') return false;
+  if (lead.sender) return lead.sender === tab;
+  return lead.status === 'to_do' && (!lead.company_sender || lead.company_sender === tab);
+}
 
 /** Midnight of `day` in Europe/Bratislava, as a UTC ISO timestamp (handles summer time). */
 export function dayStartUtc(day: DateStr): string {

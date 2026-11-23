@@ -90,9 +90,11 @@ Disqualified leads stay in the database (the rules may relax later) and never re
 ## Views
 
 1. **Queue (setter).**
-   - **Daily counter** on top: connection requests sent today out of 15 ("Sent" clicks on
-     `warmed_up`), reset at midnight Europe/Bratislava. Red at 15. It only informs; nothing is
-     blocked.
+   - **Profile tabs** ("Working as"): LinkedIn check (VA) | Andrej | Narek | Mher. The choice is
+     remembered per browser. See "Sender profiles".
+   - **Daily counter** on top, per profile: connection requests sent today ("Sent" clicks on
+     `warmed_up`) out of Andrej 20, Narek 15, Mher 15; reset at midnight Europe/Bratislava. Red at
+     the limit. It only informs; nothing is blocked.
    - **Due** (default): ready leads due today or overdue, within the company cap, not in a
      final status, sorted by queue score. A status dropdown (with counts) narrows it to one step.
    - **Each card shows:** name, title, company, a message-type badge (label / management /
@@ -154,7 +156,8 @@ Disqualified leads stay in the database (the rules may relax later) and never re
 | email, country | |
 | research_status | `new` \| `artists_found` \| `enriched` \| `ready` \| `disqualified` |
 | disqualify_reason | set exactly when research_status = disqualified (see the table above) |
-| status | outreach status (below), default `to_do` |
+| status | outreach status (below), default `li_check` |
+| sender | LinkedIn profile that owns the lead: `Andrej` \| `Narek` \| `Mher`; null until the warm-up |
 | status_changed_at | |
 | next_action_at | date; null = nothing due (waiting or final). Defaults to today |
 | plan_url | optional link to the one-pager PDF (generator is a later build) |
@@ -181,7 +184,8 @@ Disqualified leads stay in the database (the rules may relax later) and never re
 | title, body, active | an invite with an empty body = connection request without a note |
 
 ### activity (one row per button click)
-lead_id, from_status, to_status, template_key, version, text_sent, created_by, created_at.
+lead_id, from_status, to_status, template_key, version, text_sent, sender (profile that clicked;
+null for the LinkedIn check), created_by, created_at.
 Each click goes through the database function `record_step()`, which updates the lead and
 inserts the row in one transaction. Sends store template_key, version and the final text.
 
@@ -198,6 +202,21 @@ inserts the row in one transaction. Sends store template_key, version and the fi
   everything. A VA gets their own account (created by hand in Supabase) for the LinkedIn check.
 
 "Today" means the date in Europe/Bratislava.
+
+## Sender profiles
+Three LinkedIn accounts do the outreach: **Andrej** (20 requests/day), **Narek** and **Mher**
+(15/day each). Each lead and each company belongs to one profile.
+- **Claim at warm-up:** a ready lead has no profile until the warm-up. Clicking Done on `to_do`
+  from a profile tab assigns the lead to that profile for good. Every later step (request,
+  messages, reply, call) is done only from that profile's tab; the database refuses clicks from
+  another profile.
+- **One profile per company:** once a profile owns any contact at a company, the company's other
+  contacts can only be claimed by that profile. Company = `company_name`, case and spaces ignored.
+- **Tabs:** a profile tab's Due shows that profile's own due leads plus unclaimed warm-ups at
+  companies no other profile owns. The LinkedIn check tab shows `li_check` leads (VA work, no
+  profile). All leads shows everything; buttons work only for the lead's own profile.
+- **History:** every lead already past the warm-up on 2026-11-23 was sent from Andrej's account
+  and is assigned to Andrej.
 
 ## Company cap
 At most **4 active contacts per company** in the queue, computed in the `queue` view (no extra

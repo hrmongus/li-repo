@@ -30,6 +30,7 @@ export const LEAD_FIELDS: Field[] = [
   { key: 'plan_url', kind: 'text', editable: true },
   { key: 'notes', kind: 'longtext', editable: true },
   // Workflow fields: changed by the step buttons, the LinkedIn check or research only.
+  { key: 'sender', kind: 'text', editable: false },
   { key: 'status', kind: 'text', editable: false },
   { key: 'next_action_at', kind: 'date', editable: false },
   { key: 'status_changed_at', kind: 'timestamp', editable: false },

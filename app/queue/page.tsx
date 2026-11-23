@@ -1,7 +1,11 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import {
-  DAILY_INVITE_LIMIT,
   dayStartUtc,
+  inTab,
+  isSender,
+  SENDERS,
+  type QueueTab,
   FLOW,
   messageType,
   pickTemplate,
@@ -18,6 +22,7 @@ import {
 } from '@/lib/outreach';
 import { createClient } from '@/lib/supabase/server';
 import { LeadCard, type CardProps } from './LeadCard';
+import { RememberTab } from './RememberTab';
 import { StatusFilter } from './StatusFilter';
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -57,7 +62,18 @@ function toArtist(a: Row | null | undefined): Artist | null {
   };
 }
 
-function toCard(l: Row, artist: Artist | null, templates: Template[], today: string, withScore: boolean): CardProps {
+/** Why the current profile can't click this lead's buttons (null = it can). The database checks too. */
+function blockedFor(l: Row, acting: string | null): string | null {
+  if (l.status === 'li_check') return null; // LinkedIn check is VA work, not profile work
+  if (!acting) return 'Pick your profile tab (Andrej, Narek or Mher) to work this lead.';
+  if (!('sender' in l)) return null; // TEMPORARY: sender migration not applied yet, no owners to check
+  if (l.sender && l.sender !== acting) return `Belongs to ${l.sender}: work it from the ${l.sender} tab.`;
+  if (!l.sender && l.company_sender && l.company_sender !== acting) return `${l.company_sender} works this company.`;
+  if (!l.sender && l.status !== 'to_do') return 'No profile assigned yet.';
+  return null;
+}
+
+function toCard(l: Row, artist: Artist | null, templates: Template[], today: string, withScore: boolean, acting: string | null): CardProps {
   const lead = l as Lead;
   const type = messageType(l.company_type);
   // Agencies have no artist; label and management leads need their primary artist.
@@ -95,16 +111,24 @@ function toCard(l: Row, artist: Artist | null, templates: Template[], today: str
     canReply: s?.canReply ?? false,
     message,
     noteLimit: s?.noteLimit ?? null,
+    owner: l.sender ?? null,
+    actingSender: acting,
+    blocked: ready ? blockedFor(l, acting) : null,
   };
 }
 
 export default async function QueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; q?: string; status?: string; research?: string; type?: string }>;
+  searchParams: Promise<{ view?: string; q?: string; status?: string; research?: string; type?: string; p?: string }>;
 }) {
   const sp = await searchParams;
   const view = sp.view === 'all' ? 'all' : 'due';
+  // Which profile is working (tab). Remembered in a cookie so a setter stays on their own tab.
+  const saved = (await cookies()).get('queue_tab')?.value;
+  const pick = sp.p ?? saved;
+  const qtab: QueueTab = isSender(pick) ? pick : 'li_check';
+  const acting = qtab === 'li_check' ? null : qtab;
   const today = todayStr();
   const supabase = await createClient();
 
@@ -112,15 +136,20 @@ export default async function QueuePage({
   if (tErr) throw new Error(tErr.message);
   const templates = (templateRows ?? []) as Template[];
 
-  // Connection requests sent today (each "Sent" click on warmed_up), reset at midnight Bratislava time.
-  const { count: invitesToday, error: iErr } = await supabase
-    .from('activity')
-    .select('id', { count: 'exact', head: true })
-    .eq('from_status', 'warmed_up')
-    .eq('to_status', 'connection_requested')
-    .gte('created_at', dayStartUtc(today));
-  if (iErr) throw new Error(iErr.message);
-  const invites = invitesToday ?? 0;
+  // Connection requests sent today per profile ("Sent" clicks on warmed_up), reset at midnight Bratislava time.
+  const inviteQuery = (cols: string) =>
+    supabase.from('activity').select(cols).eq('from_status', 'warmed_up').eq('to_status', 'connection_requested')
+      .gte('created_at', dayStartUtc(today));
+  let { data: inviteRows, error: iErr } = (await inviteQuery('sender')) as { data: { sender: string | null }[] | null; error: { message: string } | null };
+  // TEMPORARY until the sender migration is applied: no activity.sender yet, so all sends were Andrej's.
+  const migrated = !iErr;
+  if (iErr) {
+    const legacy = await inviteQuery('id');
+    if (legacy.error) throw new Error(legacy.error.message);
+    inviteRows = (legacy.data ?? []).map(() => ({ sender: 'Andrej' }));
+    iErr = null;
+  }
+  const invites = SENDERS.map((x) => ({ ...x, sent: (inviteRows ?? []).filter((r) => r.sender === x.name).length }));
 
   let cards: CardProps[];
   // Due view: statuses present today with counts (in sequence order), for the status dropdown.
@@ -141,10 +170,14 @@ export default async function QueuePage({
       ready.push(...((page ?? []) as HoldLead[]));
       if (!page || page.length < 1000) break;
     }
-    const rows = (data ?? []).filter((r) => !onHold(r as HoldLead, ready));
-    held = (data ?? []).length - rows.length;
+    // TEMPORARY until the sender migration is applied: no sender columns yet, so every profile tab
+    // shows all outreach leads (the old single-account queue).
+    const mine = (data ?? []).filter((r) =>
+      migrated ? inTab(r, qtab) : qtab === 'li_check' ? r.status === 'li_check' : r.status !== 'li_check');
+    const rows = mine.filter((r) => !onHold(r as HoldLead, ready));
+    held = mine.length - rows.length;
     const all = rows
-      .map((r) => toCard(r, r.artist_id ? toArtist({ ...r, name: r.artist_name }) : null, templates, today, true))
+      .map((r) => toCard(r, r.artist_id ? toArtist({ ...r, name: r.artist_name }) : null, templates, today, true, acting))
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     statusOptions = Object.keys(FLOW)
       .map((status) => ({ status, count: all.filter((c) => c.status === status).length }))
@@ -160,13 +193,13 @@ export default async function QueuePage({
     const { data, error } = await query;
     if (error) throw new Error(error.message);
     cards = (data ?? []).map((l) =>
-      toCard(l, toArtist((l.artists as Row[]).find((a) => a.is_primary)), templates, today, false),
+      toCard(l, toArtist((l.artists as Row[]).find((a) => a.is_primary)), templates, today, false, acting),
     );
   }
 
   const tab = (v: string, label: string) => (
     <Link
-      href={v === 'all' ? '/queue?view=all' : '/queue'}
+      href={v === 'all' ? `/queue?view=all&p=${qtab}` : `/queue?p=${qtab}`}
       className={`rounded px-3 py-1.5 text-sm ${view === v ? 'bg-slate-900 text-white' : 'border border-slate-300'}`}
     >
       {label}
@@ -175,22 +208,29 @@ export default async function QueuePage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div
-        className={`rounded-lg border px-4 py-2 text-sm ${
-          invites >= DAILY_INVITE_LIMIT ? 'border-red-300 bg-red-50 text-red-800' : 'border-slate-200 bg-white'
-        }`}
-      >
-        Connection requests today:{' '}
-        <span className="font-semibold">
-          {invites}/{DAILY_INVITE_LIMIT}
-        </span>
-        {invites >= DAILY_INVITE_LIMIT && <span> · daily limit reached, send the rest tomorrow</span>}
-        <span className="ml-2 text-xs text-slate-500">(resets at midnight, Slovakia time)</span>
+      <RememberTab tab={qtab} />
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-slate-500">Working as:</span>
+        {(['li_check', ...SENDERS.map((x) => x.name)] as QueueTab[]).map((t) => (
+          <Link key={t} href={`/queue?${new URLSearchParams({ ...(view === 'all' ? { view: 'all' } : {}), p: t })}`}
+            className={`rounded px-3 py-1.5 ${qtab === t ? 'bg-brand-red font-semibold text-white' : 'border border-slate-300'}`}>
+            {t === 'li_check' ? 'LinkedIn check (VA)' : t}
+          </Link>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm">
+        <span>Connection requests today:</span>
+        {invites.map((x) => (
+          <span key={x.name} className={`${x.sent >= x.dailyLimit ? 'font-semibold text-red-700' : ''} ${qtab === x.name ? 'underline' : ''}`}>
+            {x.name} {x.sent}/{x.dailyLimit}{x.sent >= x.dailyLimit ? ' (limit reached)' : ''}
+          </span>
+        ))}
+        <span className="text-xs text-slate-500">(resets at midnight, Slovakia time)</span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {tab('due', 'Due')}
         {tab('all', 'All leads')}
-        {view === 'due' && <StatusFilter key={sp.status ?? ''} value={sp.status ?? ''} options={statusOptions} />}
+        {view === 'due' && <StatusFilter key={sp.status ?? ''} value={sp.status ?? ''} options={statusOptions} tab={qtab} />}
         <span className="ml-auto text-sm text-slate-500">
           {cards.length} {view === 'due' ? 'due today' : 'leads'}
           {view === 'all' && cards.length === 200 ? ' (first 200, narrow the search)' : ''}
@@ -201,6 +241,7 @@ export default async function QueuePage({
       {view === 'all' && (
         <form className="flex flex-wrap gap-2 text-sm">
           <input type="hidden" name="view" value="all" />
+          <input type="hidden" name="p" value={qtab} />
           <input name="q" defaultValue={sp.q} placeholder="Search name or company"
             className="min-w-56 flex-1 rounded border border-slate-300 px-3 py-1.5" />
           <select name="status" defaultValue={sp.status ?? ''} className="rounded border border-slate-300 px-2 py-1.5">

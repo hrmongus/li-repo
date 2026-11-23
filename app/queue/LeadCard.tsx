@@ -29,6 +29,12 @@ export interface CardProps {
   /** Present when one of the buttons sends a message. */
   message: { text: string; templateKey: string | null; version: string | null; templateTitle: string | null } | null;
   noteLimit: number | null;
+  /** LinkedIn profile that owns this lead (set at the warm-up); null = not claimed yet. */
+  owner: string | null;
+  /** Profile tab the setter is working from; null on the LinkedIn check tab. */
+  actingSender: string | null;
+  /** Why this profile can't click the buttons here (another owner, no tab picked); null = it can. */
+  blocked: string | null;
 }
 
 const fmt = (n: number | null) => (n == null ? '–' : n.toLocaleString('en-US'));
@@ -69,6 +75,7 @@ export function LeadCard(p: CardProps) {
           {[p.title, p.company].filter(Boolean).join(' · ')}
         </span>
         <span className="ml-auto flex gap-2 text-xs">
+          {p.owner && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-900">{p.owner}</span>}
           {p.messageType && <span className="rounded bg-indigo-100 px-2 py-0.5 text-indigo-800">{p.messageType}</span>}
           {p.ready ? (
             <span className="rounded bg-slate-100 px-2 py-0.5">{p.status}</span>
@@ -153,13 +160,14 @@ export function LeadCard(p: CardProps) {
             {p.buttons.map((b) => (
               <button
                 key={b.id}
-                disabled={pending || (b.sends === true && !check.canCopy)}
+                disabled={pending || p.blocked !== null || (b.sends === true && !check.canCopy)}
                 onClick={() =>
                   run(() =>
                     clickStepAction({
                       leadId: p.leadId,
                       fromStatus: p.status,
                       buttonId: b.id,
+                      sender: p.actingSender,
                       text: b.sends ? text : null,
                       templateKey: p.message?.templateKey ?? null,
                       version: p.message?.version ?? null,
@@ -174,14 +182,18 @@ export function LeadCard(p: CardProps) {
 
             {p.canReply && (
               <button
-                disabled={pending}
-                onClick={() => run(() => repliedAction({ leadId: p.leadId, fromStatus: p.status }))}
+                disabled={pending || p.blocked !== null}
+                onClick={() => run(() => repliedAction({ leadId: p.leadId, fromStatus: p.status, sender: p.actingSender }))}
                 className="ml-auto rounded border border-slate-900 px-3 py-1.5 text-sm disabled:opacity-40"
               >
                 Replied
               </button>
             )}
           </div>
+          {p.blocked && <p className="mt-2 text-sm text-slate-500">{p.blocked}</p>}
+          {!p.blocked && p.status === 'to_do' && !p.owner && p.actingSender && (
+            <p className="mt-2 text-xs text-slate-500">Done claims this lead (and its company) for {p.actingSender}.</p>
+          )}
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         </>
       )}

@@ -1,13 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { checkMessage, clickButton, clickReplied, step, todayStr, type Transition } from '@/lib/outreach';
+import { checkMessage, clickButton, clickReplied, isSender, step, todayStr, type Transition } from '@/lib/outreach';
 import { ARTIST_FIELDS, changedValues, LEAD_FIELDS } from '@/lib/leadFields';
 import { createClient } from '@/lib/supabase/server';
 
-async function record(t: Transition & { lead_id: string; template_key?: string | null; version?: string | null; text_sent?: string | null }) {
+async function record(t: Transition & { lead_id: string; sender: string | null; template_key?: string | null; version?: string | null; text_sent?: string | null }) {
   const supabase = await createClient();
-  const { error } = await supabase.rpc('record_step', {
+  const args = {
     p_lead_id: t.lead_id,
     p_from_status: t.from_status,
     p_to_status: t.to_status,
@@ -17,7 +17,18 @@ async function record(t: Transition & { lead_id: string; template_key?: string |
     p_text_sent: t.text_sent ?? null,
     p_plan_sent: t.plan_sent,
     p_li_active: t.li_active,
-  });
+    p_sender: t.sender,
+  };
+  const { error } = await supabase.rpc('record_step', args);
+  // TEMPORARY until migration 20261123010000_sender_profiles is applied: the old record_step has no
+  // p_sender, so retry without it. Remove once the migration is live.
+  if (error?.code === 'PGRST202') {
+    const { p_sender: _ignored, ...legacy } = args; // eslint-disable-line @typescript-eslint/no-unused-vars
+    const retry = await supabase.rpc('record_step', legacy);
+    if (retry.error) return { error: retry.error.message };
+    revalidatePath('/queue');
+    return { error: null };
+  }
   if (error) return { error: error.message };
   revalidatePath('/queue');
   return { error: null };
@@ -27,6 +38,8 @@ export async function clickStepAction(input: {
   leadId: string;
   fromStatus: string;
   buttonId: string;
+  /** Profile tab the click comes from (null on the LinkedIn check tab). */
+  sender: string | null;
   text: string | null;
   templateKey: string | null;
   version: string | null;
@@ -34,7 +47,8 @@ export async function clickStepAction(input: {
   try {
     const transition = clickButton(input.fromStatus, input.buttonId, todayStr());
     const button = step(input.fromStatus).buttons.find((b) => b.id === input.buttonId)!;
-    if (!button.sends) return record({ ...transition, lead_id: input.leadId });
+    const sender = isSender(input.sender) ? input.sender : null;
+    if (!button.sends) return record({ ...transition, lead_id: input.leadId, sender });
 
     const text = input.text ?? '';
     const check = checkMessage(text, step(input.fromStatus).noteLimit ?? null);
@@ -42,6 +56,7 @@ export async function clickStepAction(input: {
     return record({
       ...transition,
       lead_id: input.leadId,
+      sender,
       template_key: input.templateKey,
       version: input.templateKey ? input.version : null,
       text_sent: text,
@@ -103,9 +118,10 @@ export async function saveLeadDetails(input: {
   }
 }
 
-export async function repliedAction(input: { leadId: string; fromStatus: string }) {
+export async function repliedAction(input: { leadId: string; fromStatus: string; sender: string | null }) {
   try {
-    return record({ ...clickReplied(input.fromStatus, todayStr()), lead_id: input.leadId });
+    const sender = isSender(input.sender) ? input.sender : null;
+    return record({ ...clickReplied(input.fromStatus, todayStr()), lead_id: input.leadId, sender });
   } catch (e) {
     return { error: (e as Error).message };
   }

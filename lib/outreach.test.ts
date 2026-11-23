@@ -1,5 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, dayStartUtc, onHold, pickVersion, queueScore, type HoldLead } from './outreach';
+import { addDays, dayStartUtc, inTab, onHold, pickVersion, queueScore, SENDERS, type HoldLead } from './outreach';
+
+describe('inTab (sender profiles)', () => {
+  const lead = (status: string, sender: string | null, company_sender: string | null = sender) => ({ status, sender, company_sender });
+
+  it('LinkedIn check tab shows only li_check leads; profile tabs never do', () => {
+    expect(inTab(lead('li_check', null), 'li_check')).toBe(true);
+    expect(inTab(lead('li_check', null), 'Narek')).toBe(false);
+    expect(inTab(lead('to_do', null), 'li_check')).toBe(false);
+  });
+
+  it('owned leads show only in their owner tab', () => {
+    expect(inTab(lead('connected', 'Narek'), 'Narek')).toBe(true);
+    expect(inTab(lead('connected', 'Narek'), 'Andrej')).toBe(false);
+  });
+
+  it('unclaimed warm-ups show in every tab unless the company already has a profile', () => {
+    expect(SENDERS.every((s) => inTab(lead('to_do', null, null), s.name))).toBe(true);
+    expect(inTab(lead('to_do', null, 'Mher'), 'Mher')).toBe(true);
+    expect(inTab(lead('to_do', null, 'Mher'), 'Narek')).toBe(false);
+  });
+
+  it('Andrej has a 20/day limit, the others 15', () => {
+    expect(SENDERS.map((s) => [s.name, s.dailyLimit])).toEqual([['Andrej', 20], ['Narek', 15], ['Mher', 15]]);
+  });
+});
 
 describe('onHold (active first, inactive only if that did not work)', () => {
   const l = (id: string, status: string, active: boolean | null, company = 'Acme Records'): HoldLead => ({

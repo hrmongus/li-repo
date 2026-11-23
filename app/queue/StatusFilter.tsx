@@ -1,9 +1,10 @@
 'use client';
 
 /** Status dropdown for the Due view; changing it reloads the page with ?status=… */
-export function StatusFilter({ value, options }: { value: string; options: { status: string; count: number }[] }) {
+export function StatusFilter({ value, options, tab }: { value: string; options: { status: string; count: number }[]; tab: string }) {
   return (
     <form className="text-sm">
+      <input type="hidden" name="p" value={tab} />
       <select
         name="status"
         defaultValue={value}
