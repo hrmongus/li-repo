@@ -24,6 +24,9 @@ export interface UploadResult {
 const leadRow = ({ artist, lead_id, ...row }: LeadInput) => row; // eslint-disable-line @typescript-eslint/no-unused-vars
 
 const BATCH = 500;
+// Reads and updates filtered with .in(...) put every value in the request URL; 500 LinkedIn URLs
+// make it too long ("Bad Request"). Keep those lists short.
+const IN_BATCH = 50;
 const IN_RESEARCH = ['new', 'artists_found', 'enriched'];
 
 /** True when a researcher filled in research results on this row. */
@@ -41,11 +44,11 @@ async function updateExisting(supabase: Supabase, rows: (LeadInput & { lead_id: 
   const result = { updated: 0, ready: 0, disqualified: 0, notInResearch: 0, conflicts: 0 };
   const existing = new Map<string, Record<string, any>>(); // eslint-disable-line @typescript-eslint/no-explicit-any
   const ids = rows.map((r) => r.lead_id);
-  for (let i = 0; i < ids.length; i += BATCH) {
+  for (let i = 0; i < ids.length; i += IN_BATCH) {
     const { data, error } = await supabase
       .from('leads')
       .select('id, research_status, linkedin_url, first_name, company_name, company_type, li_checked_at, notes')
-      .in('id', ids.slice(i, i + BATCH));
+      .in('id', ids.slice(i, i + IN_BATCH));
     if (error) throw new Error(error.message);
     for (const l of data ?? []) existing.set(l.id, l);
   }
@@ -170,8 +173,8 @@ export async function uploadLeads(_prev: UploadResult | null, formData: FormData
     if (error) return { error: `Leads added, but artists failed: ${error.message}`, added };
   }
   const readyIds = inserted.filter(({ linkedin_url }) => isReadyResearch(byUrl.get(linkedin_url)!)).map((r) => r.id);
-  for (let i = 0; i < readyIds.length; i += BATCH) {
-    const { error } = await supabase.from('leads').update({ research_status: 'ready' }).in('id', readyIds.slice(i, i + BATCH));
+  for (let i = 0; i < readyIds.length; i += IN_BATCH) {
+    const { error } = await supabase.from('leads').update({ research_status: 'ready' }).in('id', readyIds.slice(i, i + IN_BATCH));
     if (error) return { error: `Leads added, but marking them ready failed: ${error.message}`, added };
   }
   const disqualified = inserted.filter(({ linkedin_url }) => byUrl.get(linkedin_url)?.research_status === 'disqualified').length
@@ -181,8 +184,8 @@ export async function uploadLeads(_prev: UploadResult | null, formData: FormData
   const insertedUrls = new Set(inserted.map((r) => r.linkedin_url));
   const researchedExisting = withUrl.filter((l) => !insertedUrls.has(l.linkedin_url) && hasResearch(l));
   const updates = [...byId];
-  for (let i = 0; i < researchedExisting.length; i += BATCH) {
-    const chunk = researchedExisting.slice(i, i + BATCH);
+  for (let i = 0; i < researchedExisting.length; i += IN_BATCH) {
+    const chunk = researchedExisting.slice(i, i + IN_BATCH);
     const { data, error } = await supabase.from('leads').select('id, linkedin_url').in('linkedin_url', chunk.map((l) => l.linkedin_url!));
     if (error) return { error: error.message, added };
     const idByUrl = new Map((data ?? []).map((r) => [r.linkedin_url, r.id]));
