@@ -1,5 +1,5 @@
 -- Message templates: 4 steps x 3 message types (label, management, agency).
--- Invites have A (note) and B (empty body = connection request without a note); everything else A only.
+-- One version (A) per template. The invite A/B test (B = no note) ended 2026-11-23: A won.
 -- Re-running is safe: existing (key, version) rows are left alone, so dashboard edits survive.
 -- Placeholders: {First} {Company} {Artist} {Song} {City}. Agency templates use only {First} and {Company}.
 
@@ -8,13 +8,10 @@ insert into public.message_templates (key, version, status, audience, title, bod
 -- Invites (sent from warmed_up)
 ('invite_label', 'A', 'warmed_up', 'label', 'Invite: label',
 $$Hi {First}, I run TikTok fan-page campaigns for indie artists and {Company}'s roster keeps coming up in my research, {Artist} especially. Would be good to connect.$$),
-('invite_label', 'B', 'warmed_up', 'label', 'Invite: label (no note)', ''),
 ('invite_management', 'A', 'warmed_up', 'management', 'Invite: management',
 $$Hi {First}, I build faceless TikTok fan pages for artists who'd rather not live on camera. Saw you work with {Artist}. Would be good to connect.$$),
-('invite_management', 'B', 'warmed_up', 'management', 'Invite: management (no note)', ''),
 ('invite_agency', 'A', 'warmed_up', 'agency', 'Invite: agency',
 $$Hi {First}, I run TikTok fan-page campaigns for artists and partner with agencies that want to offer it to their own clients. Would be good to connect.$$),
-('invite_agency', 'B', 'warmed_up', 'agency', 'Invite: agency (no note)', ''),
 
 -- Message 1 (sent from connected)
 ('msg1_label', 'A', 'connected', 'label', 'Message 1: label',

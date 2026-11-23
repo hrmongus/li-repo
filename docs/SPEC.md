@@ -215,6 +215,11 @@ people. Companies are grouped by `company_name` (case and spaces ignored).
   4. Then the oldest lead.
 - **The rest stay ready but hidden.** A hidden contact shows up when one of the four reaches
   `no_reply`, `not_accepted` or `lost`.
+- **Active first, inactive only if that didn't work:** an inactive contact (VA clicked
+  Inactive) who hasn't been invited yet (`to_do`, `warmed_up`) is on hold, out of Due, while a
+  colleague at the same company who isn't inactive is still in play (not `not_accepted`,
+  `no_reply` or `lost`). It comes back once they've all failed. A company with only inactive
+  contacts isn't held; those leads rank last by score. Due shows how many are on hold.
 
 ## Outreach statuses (14)
 
@@ -247,8 +252,8 @@ people. Companies are grouped by `company_name` (case and spaces ignored).
 - **Message type = company_type:** label, management or agency. There are only these three.
 - **12 template keys:** invite / msg1 / followup / breakup × label / management / agency, seeded
   in `supabase/seed.sql`. Only active versions are served.
-- **One A/B test at a time.** Now: invites only, A = note, B = empty body (no note), both
-  active. Everything else is version A only.
+- **One A/B test at a time.** None running now: every template is version A. The invite test
+  (A = note, B = no note) ended 2026-11-23: A won (16% vs 8% accepted), B was removed.
 - **A/B assignment:** deterministic hash of (lead_id + template_key), stable and about 50/50.
 - **No pricing in any message.** Every path aims at the free plan + 3 edits, then a call.
 

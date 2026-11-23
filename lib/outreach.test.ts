@@ -1,5 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, dayStartUtc, pickVersion, queueScore } from './outreach';
+import { addDays, dayStartUtc, onHold, pickVersion, queueScore, type HoldLead } from './outreach';
+
+describe('onHold (active first, inactive only if that did not work)', () => {
+  const l = (id: string, status: string, active: boolean | null, company = 'Acme Records'): HoldLead => ({
+    id, company_name: company, status,
+    li_checked_at: active === null ? null : '2026-11-01',
+    last_li_activity: active ? '2026-11-01' : null,
+  });
+  const inactive = l('i', 'warmed_up', false);
+
+  it('holds an uninvited inactive contact while an active colleague is still in play', () => {
+    expect(onHold(inactive, [inactive, l('a', 'connection_requested', true)])).toBe(true);
+    expect(onHold(inactive, [inactive, l('u', 'li_check', null)])).toBe(true); // unchecked counts as not inactive
+  });
+
+  it('releases it once the active colleagues failed, or when there is no active colleague', () => {
+    expect(onHold(inactive, [inactive, l('a', 'no_reply', true), l('b', 'not_accepted', true)])).toBe(false);
+    expect(onHold(inactive, [inactive, l('j', 'warmed_up', false)])).toBe(false);
+    expect(onHold(inactive, [inactive, l('a', 'to_do', true, 'Other Records')])).toBe(false);
+  });
+
+  it('never holds active leads or inactive leads already invited', () => {
+    expect(onHold(l('a', 'warmed_up', true), [l('b', 'to_do', true)])).toBe(false);
+    expect(onHold(l('i2', 'connection_requested', false), [l('a', 'to_do', true)])).toBe(false);
+  });
+});
 
 describe('dayStartUtc', () => {
   it('is Bratislava midnight in winter (UTC+1) and summer (UTC+2)', () => {

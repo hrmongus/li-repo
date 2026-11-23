@@ -10,7 +10,9 @@ import {
   step,
   daysBetween,
   todayStr,
+  onHold,
   type Artist,
+  type HoldLead,
   type Lead,
   type Template,
 } from '@/lib/outreach';
@@ -123,10 +125,25 @@ export default async function QueuePage({
   let cards: CardProps[];
   // Due view: statuses present today with counts (in sequence order), for the status dropdown.
   let statusOptions: { status: string; count: number }[] = [];
+  let held = 0;
   if (view === 'due') {
     const { data, error } = await supabase.from('queue').select('*');
     if (error) throw new Error(error.message);
-    const all = (data ?? [])
+    // Active first: inactive contacts wait while an active colleague at the company is still in play.
+    const ready: HoldLead[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data: page, error: rErr } = await supabase
+        .from('leads')
+        .select('id, company_name, status, last_li_activity, li_checked_at')
+        .eq('research_status', 'ready')
+        .range(from, from + 999);
+      if (rErr) throw new Error(rErr.message);
+      ready.push(...((page ?? []) as HoldLead[]));
+      if (!page || page.length < 1000) break;
+    }
+    const rows = (data ?? []).filter((r) => !onHold(r as HoldLead, ready));
+    held = (data ?? []).length - rows.length;
+    const all = rows
       .map((r) => toCard(r, r.artist_id ? toArtist({ ...r, name: r.artist_name }) : null, templates, today, true))
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     statusOptions = Object.keys(FLOW)
@@ -177,6 +194,7 @@ export default async function QueuePage({
         <span className="ml-auto text-sm text-slate-500">
           {cards.length} {view === 'due' ? 'due today' : 'leads'}
           {view === 'all' && cards.length === 200 ? ' (first 200, narrow the search)' : ''}
+          {view === 'due' && held > 0 ? ` · ${held} inactive on hold (an active colleague is still in play)` : ''}
         </span>
       </div>
 

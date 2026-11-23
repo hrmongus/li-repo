@@ -349,6 +349,36 @@ export function renderMessage(template: Template, lead: Lead, artist: Artist | n
  * LinkedIn activity (last post, repost or comment). Any activity beats none; never posting is
  * by far the lowest. Not checked yet = neutral.
  */
+export function isInactive(lead: Pick<Lead, 'last_li_activity' | 'li_checked_at'>): boolean {
+  return !!lead.li_checked_at && !lead.last_li_activity;
+}
+
+const FAILED = ['not_accepted', 'no_reply', 'lost'];
+const companyKey = (name: string | null) => (name ?? '').trim().toLowerCase();
+
+export interface HoldLead {
+  id: string;
+  company_name: string | null;
+  status: string;
+  last_li_activity: DateStr | null;
+  li_checked_at: DateStr | null;
+}
+
+/**
+ * Active first, inactive only if that didn't work: an inactive contact who hasn't been invited yet
+ * (to_do / warmed_up) is on hold while someone else at the same company is not inactive and
+ * hasn't failed (not_accepted, no_reply, lost). A company with only inactive contacts isn't held
+ * (there is no active contact to try); those leads still rank last by queueScore.
+ * `companyLeads` = the ready leads (any status) of the whole CRM or at least that company.
+ */
+export function onHold(lead: HoldLead, companyLeads: HoldLead[]): boolean {
+  if (!isInactive(lead) || !['to_do', 'warmed_up'].includes(lead.status)) return false;
+  const key = companyKey(lead.company_name);
+  return companyLeads.some(
+    (o) => o.id !== lead.id && companyKey(o.company_name) === key && !isInactive(o) && !FAILED.includes(o.status),
+  );
+}
+
 export function activityPoints(lead: Pick<Lead, 'last_li_activity' | 'li_checked_at'>, today: DateStr): number {
   if (!lead.li_checked_at) return 0; // not checked yet
   if (!lead.last_li_activity) return -20; // checked: never posted, reposted or commented
