@@ -27,7 +27,14 @@ export interface CardProps {
   buttons: Button[];
   canReply: boolean;
   /** Present when one of the buttons sends a message. */
-  message: { text: string; templateKey: string | null; version: string | null; templateTitle: string | null } | null;
+  message: {
+    text: string;
+    templateKey: string | null;
+    version: string | null;
+    templateTitle: string | null;
+    /** Profile without Premium: the connection request goes out without a note. */
+    noNote?: string;
+  } | null;
   noteLimit: number | null;
   /** LinkedIn profile that owns this lead (set at the warm-up); null = not claimed yet. */
   owner: string | null;
@@ -119,7 +126,12 @@ export function LeadCard(p: CardProps) {
         <>
           <p className="mt-3 text-sm font-medium">{p.action}</p>
 
-          {p.message && (
+          {p.message?.noNote && (
+            <p className="mt-2 rounded bg-slate-100 px-3 py-2 text-sm">
+              No note: {p.message.noNote} has no LinkedIn Premium. Send the connection request without a note.
+            </p>
+          )}
+          {p.message && !p.message.noNote && (
             <div className="mt-2">
               {p.message.templateTitle && (
                 <p className="mb-1 text-xs text-slate-500">

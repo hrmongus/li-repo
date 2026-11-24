@@ -5,6 +5,7 @@ import {
   inTab,
   isSender,
   SENDERS,
+  sendsInviteNote,
   type QueueTab,
   FLOW,
   messageType,
@@ -79,7 +80,10 @@ function toCard(l: Row, artist: Artist | null, templates: Template[], today: str
   const ready = l.research_status === 'ready' && type !== null && (type === 'agency' || artist !== null) && FLOW[l.status] !== undefined;
   const s = ready ? step(l.status) : null;
   let message: CardProps['message'] = null;
-  if (s && s.buttons.some((b) => b.sends)) {
+  if (s && s.buttons.some((b) => b.sends) && l.status === 'warmed_up' && acting && !sendsInviteNote(acting)) {
+    // No Premium: the request goes out without a note, and isn't counted in the invite A stats.
+    message = { text: '', templateKey: null, version: null, templateTitle: null, noNote: acting };
+  } else if (s && s.buttons.some((b) => b.sends)) {
     const t = pickTemplate(templates, lead);
     message = t
       ? { text: renderMessage(t, lead, artist).text, templateKey: t.key, version: t.version, templateTitle: t.title }

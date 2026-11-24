@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, dayStartUtc, inTab, onHold, pickVersion, queueScore, SENDERS, type HoldLead } from './outreach';
+import { addDays, dayStartUtc, inTab, onHold, pickVersion, queueScore, SENDERS, sendsInviteNote, type HoldLead } from './outreach';
 
 describe('inTab (sender profiles)', () => {
   const lead = (status: string, sender: string | null, company_sender: string | null = sender) => ({ status, sender, company_sender });
@@ -19,6 +19,12 @@ describe('inTab (sender profiles)', () => {
     expect(SENDERS.every((s) => inTab(lead('to_do', null, null), s.name))).toBe(true);
     expect(inTab(lead('to_do', null, 'Mher'), 'Mher')).toBe(true);
     expect(inTab(lead('to_do', null, 'Mher'), 'Narek')).toBe(false);
+  });
+
+  it('only Andrej (Premium) sends invite notes', () => {
+    expect(sendsInviteNote('Andrej')).toBe(true);
+    expect(sendsInviteNote('Narek')).toBe(false);
+    expect(sendsInviteNote('Mher')).toBe(false);
   });
 
   it('Andrej has a 20/day limit, the others 15', () => {

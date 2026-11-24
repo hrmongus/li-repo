@@ -206,6 +206,9 @@ inserts the row in one transaction. Sends store template_key, version and the fi
 ## Sender profiles
 Three LinkedIn accounts do the outreach: **Andrej** (20 requests/day), **Narek** and **Mher**
 (15/day each). Each lead and each company belongs to one profile.
+- **Invite notes:** only Andrej has LinkedIn Premium. Narek and Mher send every connection request
+  without a note: their card shows no note text, and those sends are logged without a template
+  (so the invite A stats count only noted invites).
 - **Claim at warm-up:** a ready lead has no profile until the warm-up. Clicking Done on `to_do`
   from a profile tab assigns the lead to that profile for good. Every later step (request,
   messages, reply, call) is done only from that profile's tab; the database refuses clicks from

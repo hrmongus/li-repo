@@ -223,12 +223,15 @@ export function todayStr(now: Date = new Date()): DateStr {
  * (counter on the Queue page). A lead belongs to the profile that did its warm-up.
  */
 export const SENDERS = [
-  { name: 'Andrej', dailyLimit: 20 },
-  { name: 'Narek', dailyLimit: 15 },
-  { name: 'Mher', dailyLimit: 15 },
+  { name: 'Andrej', dailyLimit: 20, inviteNote: true },
+  // No LinkedIn Premium: their connection requests go out without a note.
+  { name: 'Narek', dailyLimit: 15, inviteNote: false },
+  { name: 'Mher', dailyLimit: 15, inviteNote: false },
 ] as const;
 export type Sender = (typeof SENDERS)[number]['name'];
 export const isSender = (s: unknown): s is Sender => SENDERS.some((x) => x.name === s);
+/** Can this profile add a note to a connection request? (Needs LinkedIn Premium.) */
+export const sendsInviteNote = (s: string | null): boolean => SENDERS.find((x) => x.name === s)?.inviteNote ?? true;
 
 /** Queue tab: one per profile, plus the shared LinkedIn check (VA). */
 export type QueueTab = Sender | 'li_check';

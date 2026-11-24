@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { checkMessage, clickButton, clickReplied, isSender, step, todayStr, type Transition } from '@/lib/outreach';
+import { checkMessage, clickButton, clickReplied, isSender, sendsInviteNote, step, todayStr, type Transition } from '@/lib/outreach';
 import { ARTIST_FIELDS, changedValues, LEAD_FIELDS } from '@/lib/leadFields';
 import { createClient } from '@/lib/supabase/server';
 
@@ -41,6 +41,10 @@ export async function clickStepAction(input: {
     const sender = isSender(input.sender) ? input.sender : null;
     if (!button.sends) return record({ ...transition, lead_id: input.leadId, sender });
 
+    // No Premium: the connection request had no note, so log it without text or template.
+    if (input.fromStatus === 'warmed_up' && !sendsInviteNote(sender)) {
+      return record({ ...transition, lead_id: input.leadId, sender, template_key: null, version: null, text_sent: '' });
+    }
     const text = input.text ?? '';
     const check = checkMessage(text, step(input.fromStatus).noteLimit ?? null);
     if (!check.canCopy) return { error: check.problems.join('. ') };
