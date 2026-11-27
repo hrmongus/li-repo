@@ -15,6 +15,7 @@ ask.
 ## Folder layout
 ```
 docs/SPEC.md                 spec (source of truth)
+docs/apps-research-prompt.md research prompt for app founders (browser Claude); CSV = apps upload format
 lib/outreach.ts              business logic: FLOW (statuses/buttons/due dates), message type,
                              template choice, A/B version, rendering + Copy checks, queueScore
 lib/outreach.test.ts         tests for queueScore and A/B assignment
