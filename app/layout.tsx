@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { signOut } from './actions';
+import { getVertical } from './vertical';
+import { VerticalSwitch } from './VerticalSwitch';
 import './globals.css';
 
 export const metadata: Metadata = { title: 'Propagandistan CRM' };
@@ -11,6 +13,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const vertical = await getVertical();
 
   return (
     <html lang="en">
@@ -35,6 +38,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/dashboard" className="hover:text-brand-red">Dashboard</Link>
                 <Link href="/upload" className="hover:text-brand-red">Upload</Link>
               </div>
+              <VerticalSwitch current={vertical} />
               <form action={signOut} className="ml-auto">
                 <button className="text-xs uppercase tracking-[0.18em] text-paper/60 hover:text-paper">Sign out</button>
               </form>

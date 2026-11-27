@@ -351,3 +351,257 @@ export function prepareLeads(leads: LeadInput[]) {
   }
   return { valid, noPerson, duplicatesInFile };
 }
+
+// ---------- Apps vertical: founder CSV ----------
+
+export interface AppInput {
+  app_name: string;
+  app_store_url?: string;
+  rating_count?: number;
+  avg_rating?: number;
+  genre?: string;
+  release_date?: string;
+  tiktok_handle?: string;
+  yc_batch?: string;
+  source?: string;
+}
+
+/** One founder (lead) from an apps CSV. company_name = the app's name (one company per app). */
+export interface AppLeadInput {
+  linkedin_url: string | null;
+  full_name?: string;
+  first_name?: string;
+  title?: string;
+  company_name?: string;
+  company_website?: string;
+  x_url?: string;
+  instagram_url?: string;
+  crunchbase_url?: string;
+  email?: string;
+  email_source?: string;
+  email_type?: string;
+  email_alt?: string;
+  notes?: string;
+  app?: AppInput;
+}
+
+/** The apps CSV columns, exactly as the founder research files name them. */
+export const APP_CSV_COLUMNS = [
+  'founder_name', 'founder_title', 'linkedin_url', 'x_url', 'instagram_url', 'email', 'email_source',
+  'email_type', 'email_alt', 'app_name', 'app_store_url', 'rating_count', 'avg_rating', 'genre',
+  'release_date', 'website', 'crunchbase_url', 'tiktok_handle_found', 'yc_batch', 'source',
+] as const;
+type AppColumn = (typeof APP_CSV_COLUMNS)[number];
+
+/** Max founders per company (app) in the CRM. */
+export const MAX_FOUNDERS_PER_APP = 2;
+
+/** "x.com/jane", "twitter.com/jane?s=1", "@jane" -> "https://x.com/jane". Anything else: trimmed. */
+export function normalizeXUrl(raw: string): string {
+  const v = raw.trim();
+  const handle = v.match(/^@?([A-Za-z0-9_]{1,15})$/);
+  if (handle) return `https://x.com/${handle[1].toLowerCase()}`;
+  const m = v.match(/^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:x|twitter)\.com\/@?([A-Za-z0-9_]{1,15})(?:[/?#].*)?$/i);
+  return m ? `https://x.com/${m[1].toLowerCase()}` : v;
+}
+
+/** Store URL as given, minus query, fragment and trailing slash (Apple's ?l=, ?platform=…). */
+export function cleanAppStoreUrl(raw: string): string {
+  const v = raw.trim();
+  // Google Play keeps its ?id=… (that's the app); everything else loses the query.
+  if (/play\.google\.com/i.test(v)) {
+    const id = v.match(/[?&]id=([\w.]+)/)?.[1];
+    return id ? `https://play.google.com/store/apps/details?id=${id}` : v;
+  }
+  return v.replace(/[?#].*$/, '').replace(/\/+$/, '');
+}
+
+/**
+ * Dedupe key for an app: the App Store id (same app across country paths), the Play package, or
+ * the cleaned URL; without a URL, the app name. null = nothing to group on.
+ */
+export function appKey(app: { app_store_url?: string | null; app_name?: string | null } | undefined): string | null {
+  const url = (app?.app_store_url ?? '').trim();
+  if (url) {
+    const apple = url.match(/apps\.apple\.com\/.*\/id(\d+)/i) ?? url.match(/itunes\.apple\.com\/.*\/id(\d+)/i);
+    if (apple) return `apple:${apple[1]}`;
+    const play = url.match(/play\.google\.com\/.*[?&]id=([\w.]+)/i);
+    if (play) return `play:${play[1].toLowerCase()}`;
+    return `url:${cleanAppStoreUrl(url).toLowerCase()}`;
+  }
+  const name = (app?.app_name ?? '').trim().toLowerCase();
+  return name ? `name:${name}` : null;
+}
+
+/** Person key for a founder: LinkedIn, else X, else email. null = no contact at all. */
+export function founderKey(l: { linkedin_url?: string | null; x_url?: string | null; email?: string | null }): string | null {
+  if (l.linkedin_url) return `li:${l.linkedin_url}`;
+  if (l.x_url) return `x:${l.x_url.toLowerCase()}`;
+  if (l.email) return `email:${l.email.trim().toLowerCase()}`;
+  return null;
+}
+
+/** Apps ready rule (the database checks it too): founder name + at least one of LinkedIn, email, X. */
+export function isReadyApp(l: Pick<AppLeadInput, 'first_name' | 'linkedin_url' | 'email' | 'x_url'>): boolean {
+  return !!l.first_name && (!!l.linkedin_url || !!l.email || !!l.x_url);
+}
+
+const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+/**
+ * Map an apps CSV to founder leads. First row = header (column names in APP_CSV_COLUMNS; case,
+ * spaces and dashes ignored). Bad numbers, dates and emails become notes, never fail the upload.
+ * Unknown columns go to notes as "Header: value".
+ */
+export function csvToAppLeads(rows: string[][]): AppLeadInput[] {
+  const [header, ...data] = rows;
+  if (!header) return [];
+  const index: Partial<Record<AppColumn, number>> = {};
+  for (const col of APP_CSV_COLUMNS) {
+    const i = header.findIndex((h) => clean(h) === clean(col));
+    if (i >= 0) index[col] = i;
+  }
+  if (index.founder_name === undefined) throw new Error('Apps CSV needs a founder_name column.');
+  if (index.linkedin_url === undefined && index.email === undefined && index.x_url === undefined) {
+    throw new Error('Apps CSV needs at least one contact column: linkedin_url, email or x_url.');
+  }
+  const used = new Set(Object.values(index));
+  const extra = header.map((h, i) => ({ h: h.trim(), i })).filter(({ i }) => !used.has(i));
+
+  return data.map((r) => {
+    const get = (c: AppColumn) => {
+      const i = index[c];
+      return i === undefined ? '' : (r[i] ?? '').trim();
+    };
+    const problems: string[] = [];
+    const lead: AppLeadInput = { linkedin_url: get('linkedin_url') || null };
+
+    const name = get('founder_name');
+    if (name) {
+      lead.full_name = name;
+      const n = name.includes(',') ? name.split(',')[1] : name;
+      lead.first_name = n.trim().split(/\s+/)[0] || undefined;
+    }
+    if (get('founder_title')) lead.title = get('founder_title');
+    if (get('x_url')) lead.x_url = normalizeXUrl(get('x_url'));
+    if (get('instagram_url')) lead.instagram_url = get('instagram_url');
+    if (get('crunchbase_url')) lead.crunchbase_url = get('crunchbase_url');
+    if (get('website')) lead.company_website = get('website');
+    for (const c of ['email', 'email_alt'] as const) {
+      const v = get(c).toLowerCase();
+      if (!v) continue;
+      if (isEmail(v)) lead[c] = v;
+      else problems.push(`${c} not an email address: ${v}`);
+    }
+    if (get('email_source')) lead.email_source = get('email_source');
+    if (get('email_type')) lead.email_type = get('email_type');
+
+    const appName = get('app_name');
+    if (appName) {
+      lead.company_name = appName;
+      const num = (c: AppColumn) => {
+        const v = get(c);
+        if (!v) return undefined;
+        const n = toInt(v);
+        if (n === undefined) problems.push(`${c} not a plain number: ${v}`);
+        return n;
+      };
+      const rating = get('avg_rating');
+      let avg: number | undefined;
+      if (rating) {
+        const n = Number(rating.replace(',', '.'));
+        if (Number.isFinite(n) && n >= 0 && n <= 5) avg = n;
+        else problems.push(`avg_rating not a rating 0-5: ${rating}`);
+      }
+      const released = get('release_date');
+      if (released && !isDate(released)) problems.push(`release_date not YYYY-MM-DD: ${released}`);
+      lead.app = {
+        app_name: appName,
+        app_store_url: get('app_store_url') ? cleanAppStoreUrl(get('app_store_url')) : undefined,
+        rating_count: num('rating_count'),
+        avg_rating: avg,
+        genre: get('genre') || undefined,
+        release_date: released && isDate(released) ? released : undefined,
+        tiktok_handle: get('tiktok_handle_found') || undefined,
+        yc_batch: get('yc_batch') || undefined,
+        source: get('source') || undefined,
+      };
+    }
+
+    const notes = extra
+      .map(({ h, i }) => [h, (r[i] ?? '').trim()] as const)
+      .filter(([, v]) => v !== '')
+      .map(([h, v]) => `${h}: ${v}`);
+    if (problems.length) notes.push(`Upload check: ${problems.join('; ')}`);
+    if (notes.length) lead.notes = notes.join('\n');
+    return lead;
+  });
+}
+
+/**
+ * Normalize and dedupe one apps upload:
+ * - LinkedIn URLs that aren't profiles move to notes;
+ * - rows without a founder name or without any contact (LinkedIn, email, X) are skipped;
+ * - the same founder twice in the file (same LinkedIn / X / email) is kept once.
+ */
+export function prepareAppLeads(leads: AppLeadInput[]) {
+  const seen = new Set<string>();
+  const valid: AppLeadInput[] = [];
+  let noFounder = 0;
+  let duplicatesInFile = 0;
+  for (const raw of leads) {
+    const lead = { ...raw };
+    if (lead.linkedin_url && isLinkedinProfileUrl(lead.linkedin_url)) {
+      lead.linkedin_url = normalizeLinkedinUrl(lead.linkedin_url);
+    } else {
+      if (lead.linkedin_url) lead.notes = [lead.notes, `LinkedIn (not a profile): ${lead.linkedin_url}`].filter(Boolean).join('\n');
+      lead.linkedin_url = null;
+    }
+    const keys = [
+      lead.linkedin_url && `li:${lead.linkedin_url}`,
+      lead.x_url && `x:${lead.x_url.toLowerCase()}`,
+      lead.email && `email:${lead.email}`,
+    ].filter((k): k is string => !!k);
+    if (!lead.first_name || keys.length === 0) {
+      noFounder++;
+      continue;
+    }
+    if (keys.some((k) => seen.has(k))) {
+      duplicatesInFile++;
+      continue;
+    }
+    keys.forEach((k) => seen.add(k));
+    valid.push(lead);
+  }
+  return { valid, noFounder, duplicatesInFile };
+}
+
+/**
+ * Max MAX_FOUNDERS_PER_APP founders per app (deduped on app_store_url, see appKey), counting the
+ * founders already in the CRM. Founders already in the CRM (updates) always pass; new ones only
+ * while the app has a free slot. Rows keep their file order.
+ */
+export function capFounders<T extends AppLeadInput>(
+  rows: T[],
+  existingPerApp: Map<string, number>,
+  isExisting: (row: T) => boolean,
+): { kept: T[]; overCap: number } {
+  const taken = new Map(existingPerApp);
+  const kept: T[] = [];
+  let overCap = 0;
+  for (const row of rows) {
+    const key = appKey(row.app);
+    if (isExisting(row) || !key) {
+      kept.push(row);
+      continue;
+    }
+    const n = taken.get(key) ?? 0;
+    if (n >= MAX_FOUNDERS_PER_APP) {
+      overCap++;
+      continue;
+    }
+    taken.set(key, n + 1);
+    kept.push(row);
+  }
+  return { kept, overCap };
+}

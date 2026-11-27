@@ -1,7 +1,8 @@
--- Message templates: 4 steps x 3 message types (label, management, agency).
+-- Message templates: 4 steps x 4 message types (label, management, agency; app for the apps vertical).
 -- One version (A) per template. The invite A/B test (B = no note) ended 2026-11-23: A won.
 -- Re-running is safe: existing (key, version) rows are left alone, so dashboard edits survive.
 -- Placeholders: {First} {Company} {Artist} {Song} {City}. Agency templates use only {First} and {Company}.
+-- App templates: {firstName} {company} {app_name}.
 
 insert into public.message_templates (key, version, status, audience, title, body) values
 
@@ -51,6 +52,22 @@ Happy to get out of your inbox either way.$$),
 ('breakup_agency', 'A', 'follow_up_sent', 'agency', 'Breakup: agency',
 $$Last one from me, {First}. Is this something you'd want to offer clients, or not a fit right now?
 
-Either answer helps, and I'll get out of your inbox.$$)
+Either answer helps, and I'll get out of your inbox.$$),
+
+-- Apps vertical (audience app): same four steps
+('invite_app', 'A', 'warmed_up', 'app', 'Invite: app',
+$$Hi {firstName}, I run faceless TikTok page campaigns for consumer apps and {app_name} caught my eye. Would be good to connect.$$),
+('msg1_app', 'A', 'connected', 'app', 'Message 1: app',
+$$Thanks for connecting, {firstName}.
+
+A lot of app installs on TikTok now come from faceless pages posting short edits every day, with nobody on camera.
+
+I sketched a page plan for {app_name}: the page angles, who each one targets, plus 3 sample edits. Want me to send it?$$),
+('followup_app', 'A', 'message_1_sent', 'app', 'Follow-up: app',
+$${firstName}, still happy to send the page plan and 3 sample edits for {app_name}. Just say yes and they're yours.$$),
+('breakup_app', 'A', 'follow_up_sent', 'app', 'Breakup: app',
+$$Last one from me, {firstName}. Is TikTok growth for {app_name} something you look after, or someone else at {company}?
+
+Happy to get out of your inbox either way.$$)
 
 on conflict (key, version) do nothing;

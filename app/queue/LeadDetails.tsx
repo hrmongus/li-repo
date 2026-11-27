@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { ARTIST_FIELDS, LEAD_FIELDS, type Field } from '@/lib/leadFields';
+import { APP_FIELDS, APP_LEAD_FIELDS, ARTIST_FIELDS, LEAD_FIELDS, type Field } from '@/lib/leadFields';
 import { getLeadDetails, saveLeadDetails } from './actions';
 
 type Row = Record<string, unknown>;
@@ -46,6 +46,8 @@ export function LeadDetails({ leadId }: { leadId: string }) {
   const [open, setOpen] = useState(false);
   const [lead, setLead] = useState<Record<string, string> | null>(null);
   const [artists, setArtists] = useState<{ id: string; values: Record<string, string> }[]>([]);
+  const [apps, setApps] = useState<{ id: string; values: Record<string, string> }[]>([]);
+  const [isApps, setIsApps] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
@@ -56,8 +58,11 @@ export function LeadDetails({ leadId }: { leadId: string }) {
     start(async () => {
       const res = await getLeadDetails(leadId);
       if (res.error || !res.lead) return setMsg({ ok: false, text: res.error ?? 'Lead not found' });
-      setLead(toValues(res.lead, LEAD_FIELDS));
+      const apps = res.lead.vertical === 'apps';
+      setIsApps(apps);
+      setLead(toValues(res.lead, apps ? APP_LEAD_FIELDS : LEAD_FIELDS));
       setArtists(res.artists.map((a) => ({ id: String(a.id), values: toValues(a, ARTIST_FIELDS) })));
+      setApps(res.apps.map((a) => ({ id: String(a.id), values: toValues(a, APP_FIELDS) })));
       setDirty(false);
     });
 
@@ -70,7 +75,7 @@ export function LeadDetails({ leadId }: { leadId: string }) {
   const save = () =>
     start(async () => {
       if (!lead) return;
-      const res = await saveLeadDetails({ leadId, lead, artists });
+      const res = await saveLeadDetails({ leadId, lead, artists, apps });
       if (res.error) return setMsg({ ok: false, text: res.error });
       setMsg({ ok: true, text: res.changed ? `Saved (${res.changed} field${res.changed === 1 ? '' : 's'})` : 'Nothing changed' });
       load();
@@ -88,11 +93,26 @@ export function LeadDetails({ leadId }: { leadId: string }) {
           ) : (
             <>
               <h4 className="mb-1 text-xs font-semibold uppercase text-slate-500">Lead</h4>
-              {LEAD_FIELDS.map((f) => (
+              {(isApps ? APP_LEAD_FIELDS : LEAD_FIELDS).map((f) => (
                 <FieldRow key={f.key} field={f} value={lead[f.key]}
                   onChange={(v) => { setLead({ ...lead, [f.key]: v }); setDirty(true); }} />
               ))}
-              {artists.length === 0 && <p className="mt-2 text-xs text-slate-400">No artists on this lead.</p>}
+              {isApps && apps.length === 0 && <p className="mt-2 text-xs text-slate-400">No app on this lead.</p>}
+              {apps.map((a, i) => (
+                <div key={a.id} className="mt-3">
+                  <h4 className="mb-1 text-xs font-semibold uppercase text-slate-500">
+                    App {i + 1}{a.values.is_primary === 'true' ? ' (primary)' : ''}
+                  </h4>
+                  {APP_FIELDS.map((f) => (
+                    <FieldRow key={f.key} field={f} value={a.values[f.key]}
+                      onChange={(v) => {
+                        setApps(apps.map((x) => (x.id === a.id ? { ...x, values: { ...x.values, [f.key]: v } } : x)));
+                        setDirty(true);
+                      }} />
+                  ))}
+                </div>
+              ))}
+              {!isApps && artists.length === 0 && <p className="mt-2 text-xs text-slate-400">No artists on this lead.</p>}
               {artists.map((a, i) => (
                 <div key={a.id} className="mt-3">
                   <h4 className="mb-1 text-xs font-semibold uppercase text-slate-500">

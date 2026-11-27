@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 Internal CRM for LinkedIn outreach to music labels, artist managers and agencies (Propagandistan,
-faceless TikTok fan-page campaigns).
+faceless TikTok fan-page campaigns), plus a second vertical: app founders (Music | Apps switch).
 
 **`docs/SPEC.md` is the source of truth.** Read it before any change. If code and spec disagree,
 ask.
@@ -18,7 +18,10 @@ docs/SPEC.md                 spec (source of truth)
 lib/outreach.ts              business logic: FLOW (statuses/buttons/due dates), message type,
                              template choice, A/B version, rendering + Copy checks, queueScore
 lib/outreach.test.ts         tests for queueScore and A/B assignment
-lib/leads.ts                 upload: CSV parsing, column matching, LinkedIn URL normalization
+lib/leads.ts                 upload: CSV parsing, column matching, LinkedIn URL normalization,
+                             apps founder CSV (csvToAppLeads, appKey dedupe, 2 founders per app)
+lib/apps.test.ts             tests for the apps vertical
+app/VerticalSwitch.tsx       Music | Apps toggle (localStorage, mirrored to a cookie); app/vertical.ts reads it
 lib/supabase/server.ts       Supabase client for server components and server actions
 middleware.ts                session refresh; signed-out visitors go to /login
 app/login                    email + password sign-in
@@ -67,6 +70,11 @@ New migration: `npx supabase migration new <name>`, then edit the file in `supab
 - **Time zone:** "today" is Europe/Bratislava, both in SQL (`app_today()`) and TypeScript
   (`todayStr()`).
 - **Queue order:** done only by `queueScore()`. The `queue` view is unsorted.
+- **Verticals:** `leads.vertical` = `music` | `apps`. Every view filters on it (`getVertical()`).
+  Apps leads: `company_type = 'app'`, app in the `apps` table, templates with audience `app`,
+  placeholders `{firstName} {company} {app_name}`. The `queue` view's new columns are appended at
+  the end (`create or replace`); `lead_instagram_url` / `app_genre` avoid clashes with artist columns.
+  The Instantly email export views are music-only: don't touch them.
 
 ## Research (`/research-leads`, procedure in `.claude/skills/research-leads/SKILL.md`)
 Cheapest checks first, so bad leads stop early:

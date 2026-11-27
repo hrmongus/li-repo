@@ -41,6 +41,7 @@ export async function GET(request: Request) {
       supabase
         .from('leads')
         .select('linkedin_url, full_name, company_name, company_type, research_status, disqualify_reason')
+        .eq('vertical', 'music') // music researchers only; app founders are a separate vertical
         .order('company_name')
         .range(from, from + 999),
     );

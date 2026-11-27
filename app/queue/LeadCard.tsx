@@ -22,6 +22,17 @@ export interface CardProps {
   liActivity: string | null;
   score: number | null;
   artist: { name: string; listeners: number | null; extra: string[] } | null;
+  /** Apps vertical: the founder's primary app and contact links (replaces the artist block). */
+  app: {
+    name: string | null;
+    ratingCount: number | null;
+    genre: string | null;
+    xUrl: string | null;
+    crunchbaseUrl: string | null;
+    website: string | null;
+    email: string | null;
+    emailType: string | null;
+  } | null;
   ready: boolean;
   action: string;
   buttons: Button[];
@@ -107,6 +118,34 @@ export function LeadCard(p: CardProps) {
           {p.artist.extra.map((e) => (
             <span key={e} className="text-slate-500"> · {e}</span>
           ))}
+        </div>
+      )}
+
+      {p.app && (
+        <div className="mt-1 flex flex-col gap-0.5 text-sm">
+          <div>
+            <span className="font-medium">{p.app.name ?? <span className="italic text-slate-400">no app yet</span>}</span>
+            <span className="text-slate-600"> · {fmt(p.app.ratingCount)} ratings</span>
+            {p.app.genre && <span className="text-slate-500"> · {p.app.genre}</span>}
+          </div>
+          <div className="flex flex-wrap gap-x-3 text-xs">
+            {p.linkedinUrl && <a href={p.linkedinUrl} target="_blank" rel="noreferrer" className="text-indigo-700 underline">LinkedIn</a>}
+            {p.app.xUrl && <a href={p.app.xUrl} target="_blank" rel="noreferrer" className="text-indigo-700 underline">X</a>}
+            {p.app.crunchbaseUrl && <a href={p.app.crunchbaseUrl} target="_blank" rel="noreferrer" className="text-indigo-700 underline">Crunchbase</a>}
+            {p.app.website && (
+              <a href={/^https?:\/\//.test(p.app.website) ? p.app.website : `https://${p.app.website}`} target="_blank" rel="noreferrer" className="text-indigo-700 underline">
+                Website
+              </a>
+            )}
+            {p.app.email ? (
+              <span className="text-slate-600">
+                {p.app.email}
+                {p.app.emailType && <span className="text-slate-400"> ({p.app.emailType})</span>}
+              </span>
+            ) : (
+              <span className="text-slate-400">no email</span>
+            )}
+          </div>
         </div>
       )}
 

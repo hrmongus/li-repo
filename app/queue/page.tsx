@@ -16,12 +16,14 @@ import {
   daysBetween,
   todayStr,
   onHold,
+  type App,
   type Artist,
   type HoldLead,
   type Lead,
   type Template,
 } from '@/lib/outreach';
 import { createClient } from '@/lib/supabase/server';
+import { getVertical } from '../vertical';
 import { LeadCard, type CardProps } from './LeadCard';
 import { RememberTab } from './RememberTab';
 import { StatusFilter } from './StatusFilter';
@@ -63,6 +65,11 @@ function toArtist(a: Row | null | undefined): Artist | null {
   };
 }
 
+function toApp(a: Row | null | undefined): App | null {
+  if (!a || !a.app_name) return null;
+  return { app_name: a.app_name, rating_count: a.rating_count ?? null, genre: a.genre ?? null };
+}
+
 /** Why the current profile can't click this lead's buttons (null = it can). The database checks too. */
 function blockedFor(l: Row, acting: string | null): string | null {
   if (l.status === 'li_check') return null; // LinkedIn check is VA work, not profile work
@@ -73,11 +80,14 @@ function blockedFor(l: Row, acting: string | null): string | null {
   return null;
 }
 
-function toCard(l: Row, artist: Artist | null, templates: Template[], today: string, withScore: boolean, acting: string | null): CardProps {
+function toCard(
+  l: Row, artist: Artist | null, templates: Template[], today: string, withScore: boolean, acting: string | null,
+  app: App | null = null,
+): CardProps {
   const lead = l as Lead;
   const type = messageType(l.company_type);
-  // Agencies have no artist; label and management leads need their primary artist.
-  const ready = l.research_status === 'ready' && type !== null && (type === 'agency' || artist !== null) && FLOW[l.status] !== undefined;
+  // Agencies and app founders need no artist; label and management leads need their primary artist.
+  const ready = l.research_status === 'ready' && type !== null && (type === 'agency' || type === 'app' || artist !== null) && FLOW[l.status] !== undefined;
   const s = ready ? step(l.status) : null;
   let message: CardProps['message'] = null;
   if (s && s.buttons.some((b) => b.sends) && l.status === 'warmed_up' && acting && !sendsInviteNote(acting)) {
@@ -86,7 +96,7 @@ function toCard(l: Row, artist: Artist | null, templates: Template[], today: str
   } else if (s && s.buttons.some((b) => b.sends)) {
     const t = pickTemplate(templates, lead);
     message = t
-      ? { text: renderMessage(t, lead, artist).text, templateKey: t.key, version: t.version, templateTitle: t.title }
+      ? { text: renderMessage(t, lead, artist, app).text, templateKey: t.key, version: t.version, templateTitle: t.title }
       : { text: '', templateKey: null, version: null, templateTitle: null };
   }
   const extra: string[] = [];
@@ -107,7 +117,20 @@ function toCard(l: Row, artist: Artist | null, templates: Template[], today: str
     planUrl: l.plan_url,
     liActivity: activityLabel(l.last_li_activity, l.li_checked_at, today),
     score: withScore && ready ? queueScore(lead, today) : null,
-    artist: artist ? { name: artist.name, listeners: artist.monthly_listeners, extra } : null,
+    artist: artist && type !== 'app' ? { name: artist.name, listeners: artist.monthly_listeners, extra } : null,
+    app:
+      type === 'app'
+        ? {
+            name: app?.app_name ?? null,
+            ratingCount: app?.rating_count ?? null,
+            genre: app?.genre ?? null,
+            xUrl: l.x_url ?? null,
+            crunchbaseUrl: l.crunchbase_url ?? null,
+            website: l.company_website ?? null,
+            email: l.email ?? null,
+            emailType: l.email_type ?? null,
+          }
+        : null,
     ready,
     action: s?.action ?? '',
     buttons: s?.buttons ?? [],
@@ -133,6 +156,7 @@ export default async function QueuePage({
   const qtab: QueueTab = isSender(pick) ? pick : 'li_check';
   const acting = qtab === 'li_check' ? null : qtab;
   const today = todayStr();
+  const vertical = await getVertical();
   const supabase = await createClient();
 
   const { data: templateRows, error: tErr } = await supabase.from('message_templates').select('*').eq('active', true);
@@ -154,7 +178,7 @@ export default async function QueuePage({
   let statusOptions: { status: string; count: number }[] = [];
   let held = 0;
   if (view === 'due') {
-    const { data, error } = await supabase.from('queue').select('*');
+    const { data, error } = await supabase.from('queue').select('*').eq('vertical', vertical);
     if (error) throw new Error(error.message);
     // Active first: inactive contacts wait while an active colleague at the company is still in play.
     const ready: HoldLead[] = [];
@@ -163,6 +187,7 @@ export default async function QueuePage({
         .from('leads')
         .select('id, company_name, status, last_li_activity, li_checked_at')
         .eq('research_status', 'ready')
+        .eq('vertical', vertical)
         .range(from, from + 999);
       if (rErr) throw new Error(rErr.message);
       ready.push(...((page ?? []) as HoldLead[]));
@@ -172,23 +197,38 @@ export default async function QueuePage({
     const rows = mine.filter((r) => !onHold(r as HoldLead, ready));
     held = mine.length - rows.length;
     const all = rows
-      .map((r) => toCard(r, r.artist_id ? toArtist({ ...r, name: r.artist_name }) : null, templates, today, true, acting))
+      .map((r) =>
+        toCard(
+          r,
+          r.artist_id ? toArtist({ ...r, name: r.artist_name }) : null,
+          templates, today, true, acting,
+          toApp({ app_name: r.app_name, rating_count: r.rating_count, genre: r.app_genre }),
+        ),
+      )
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     statusOptions = Object.keys(FLOW)
       .map((status) => ({ status, count: all.filter((c) => c.status === status).length }))
       .filter((o) => o.count > 0 || o.status === sp.status);
     cards = sp.status ? all.filter((c) => c.status === sp.status) : all;
   } else {
-    let query = supabase.from('leads').select('*, artists(*)').order('created_at', { ascending: false }).limit(200);
+    let query = supabase
+      .from('leads')
+      .select('*, artists(*), apps(*)')
+      .eq('vertical', vertical)
+      .order('created_at', { ascending: false })
+      .limit(200);
     const q = (sp.q ?? '').replace(/[,()%*\\]/g, ' ').trim();
     if (q) query = query.or(`full_name.ilike.%${q}%,company_name.ilike.%${q}%`);
     if (sp.status) query = query.eq('status', sp.status);
     if (sp.research) query = query.eq('research_status', sp.research);
-    if (sp.type) query = query.eq('company_type', sp.type);
+    if (sp.type && vertical === 'music') query = query.eq('company_type', sp.type);
     const { data, error } = await query;
     if (error) throw new Error(error.message);
     cards = (data ?? []).map((l) =>
-      toCard(l, toArtist((l.artists as Row[]).find((a) => a.is_primary)), templates, today, false, acting),
+      toCard(
+        l, toArtist((l.artists as Row[]).find((a) => a.is_primary)), templates, today, false, acting,
+        toApp((l.apps as Row[]).find((a) => a.is_primary)),
+      ),
     );
   }
 
@@ -247,10 +287,12 @@ export default async function QueuePage({
             <option value="">Any research status</option>
             {RESEARCH.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <select name="type" defaultValue={sp.type ?? ''} className="rounded border border-slate-300 px-2 py-1.5">
-            <option value="">Any company type</option>
-            {COMPANY_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          {vertical === 'music' && (
+            <select name="type" defaultValue={sp.type ?? ''} className="rounded border border-slate-300 px-2 py-1.5">
+              <option value="">Any company type</option>
+              {COMPANY_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
           <button className="rounded bg-slate-900 px-3 py-1.5 text-white">Filter</button>
         </form>
       )}

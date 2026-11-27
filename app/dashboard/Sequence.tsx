@@ -16,7 +16,6 @@ export interface TemplateStat {
   call_booked: number;
 }
 
-const TYPES: MessageType[] = ['label', 'management', 'agency'];
 
 const LABELS: Record<string, string> = {
   li_check: 'LinkedIn check (VA)',
@@ -70,11 +69,11 @@ function StepTotals({ status, stats }: { status: string; stats: TemplateStat[] }
   );
 }
 
-function Messages({ status, templates, stats }: { status: string; templates: EditorTemplate[]; stats: Map<string, TemplateStat> }) {
+function Messages({ status, templates, stats, types }: { status: string; templates: EditorTemplate[]; stats: Map<string, TemplateStat>; types: MessageType[] }) {
   const limit = FLOW[status]?.noteLimit ?? null;
   return (
-    <div className="mt-3 grid gap-3 lg:grid-cols-3">
-      {TYPES.map((type) => {
+    <div className={`mt-3 grid gap-3 ${types.length > 1 ? 'lg:grid-cols-3' : ''}`}>
+      {types.map((type) => {
         const versions = templates.filter((t) => t.audience === type).sort((a, b) => a.version.localeCompare(b.version));
         return (
           <div key={type} className="flex flex-col gap-2">
@@ -105,6 +104,7 @@ function Step({
   templates,
   stats,
   statRows,
+  types,
   mainButtonShownBelow,
 }: {
   status: string;
@@ -113,6 +113,7 @@ function Step({
   templates: EditorTemplate[];
   stats: Map<string, TemplateStat>;
   statRows: TemplateStat[];
+  types: MessageType[];
   mainButtonShownBelow: boolean;
 }) {
   const s = FLOW[status];
@@ -145,7 +146,7 @@ function Step({
       {own.length > 0 && (
         <>
           <StepTotals status={status} stats={statRows} />
-          <Messages status={status} templates={own} stats={stats} />
+          <Messages status={status} templates={own} stats={stats} types={types} />
         </>
       )}
     </div>
@@ -186,13 +187,15 @@ function Overview({ statuses }: { statuses: string[] }) {
   );
 }
 
-export function Sequence({ templates, stats, counts }: { templates: EditorTemplate[]; stats: TemplateStat[]; counts: Map<string, number> }) {
+export function Sequence({
+  templates, stats, counts, types,
+}: { templates: EditorTemplate[]; stats: TemplateStat[]; counts: Map<string, number>; types: MessageType[] }) {
   const statMap = new Map(stats.map((s) => [`${s.key}:${s.version}`, s]));
   const main = pathFrom('li_check');
   const other = Object.keys(FLOW).filter((s) => !main.includes(s) && !FINAL_STATUSES.includes(s));
   const ends = FINAL_STATUSES.filter((s) => !main.includes(s));
   const orphan = templates.filter((t) => !FLOW[t.status]);
-  const common = { templates, stats: statMap, statRows: stats };
+  const common = { templates, stats: statMap, statRows: stats, types };
 
   return (
     <div className="flex flex-col gap-8">
