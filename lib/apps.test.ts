@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { appKey, capFounders, csvToAppLeads, isReadyApp, normalizeXUrl, prepareAppLeads } from './leads';
-import { messageType, queueScore, renderMessage, type Lead, type Template } from './outreach';
+import { appKey, capFounders, csvToAppLeads, founderKey, isReadyApp, normalizeInstagramUrl, normalizeXUrl, prepareAppLeads } from './leads';
+import { clickButton, clickReplied, IG_FLOW, IG_START, messageType, pathFrom, queueScore, renderMessage, type Lead, type Template } from './outreach';
 
 const header = [
   'founder_name', 'founder_title', 'linkedin_url', 'x_url', 'instagram_url', 'email', 'email_source', 'email_type',
@@ -114,5 +114,39 @@ describe('apps outreach', () => {
     expect(text).toBe('Hi Jane, Acme at Acme Inc?');
     expect(check.canCopy).toBe(true);
     expect(renderMessage(t, lead, null, null).check.canCopy).toBe(false); // no app: {app_name} unfilled
+  });
+});
+
+describe('apps on Instagram', () => {
+  it('normalizes Instagram links and handles', () => {
+    expect(normalizeInstagramUrl('https://instagram.com/Acme.App/?igsh=abc')).toBe('https://www.instagram.com/acme.app');
+    expect(normalizeInstagramUrl('@acme_app')).toBe('https://www.instagram.com/acme_app');
+  });
+
+  it('maps founder and company Instagram columns', () => {
+    const [l] = csvToAppLeads([
+      ['founder_name', 'instagram_url', 'company_instagram_url', 'app_name'],
+      ['Jane Doe', '', 'instagram.com/acmeapp', 'Acme'],
+    ]);
+    expect(l.instagram_url).toBeUndefined();
+    expect(l.company_instagram_url).toBe('https://www.instagram.com/acmeapp');
+  });
+
+  it('a founder reachable only on Instagram is kept and ready', () => {
+    const ig = { linkedin_url: null, first_name: 'Jane', full_name: 'Jane Doe', company_name: 'Acme', company_instagram_url: 'https://www.instagram.com/acme' };
+    expect(isReadyApp(ig)).toBe(true);
+    expect(prepareAppLeads([ig]).valid).toHaveLength(1);
+    expect(founderKey(ig)).toBe('name:jane doe|acme');
+    expect(founderKey({ ...ig, instagram_url: 'https://www.instagram.com/jane' })).toBe('ig:https://www.instagram.com/jane');
+  });
+
+  it('Instagram sequence: comment, DM 1, follow-up, no reply; reply works at every step', () => {
+    expect(pathFrom(IG_START, IG_FLOW)).toEqual(['ig_comment', 'ig_dm', 'ig_dm_sent', 'ig_followup_sent', 'no_reply']);
+    expect(clickButton('ig_comment', 'done', '2026-11-27')).toMatchObject({ to_status: 'ig_dm', next_action_at: '2026-11-28' });
+    expect(clickButton('ig_dm', 'sent', '2026-11-27')).toMatchObject({ to_status: 'ig_dm_sent', next_action_at: '2026-12-01' });
+    for (const s of ['ig_comment', 'ig_dm', 'ig_dm_sent', 'ig_followup_sent']) {
+      expect(clickReplied(s, '2026-11-27').to_status).toBe('replied');
+    }
+    expect(clickButton('replied', 'plan_sent', '2026-11-27')).toMatchObject({ to_status: 'replied', plan_sent: true });
   });
 });

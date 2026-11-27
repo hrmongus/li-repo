@@ -78,6 +78,10 @@ New migration: `npx supabase migration new <name>`, then edit the file in `supab
   placeholders `{firstName} {company} {app_name}`. The `queue` view's new columns are appended at
   the end (`create or replace`); `lead_instagram_url` / `app_genre` avoid clashes with artist columns.
   The Instantly email export views are music-only: don't touch them.
+- **Apps channels:** LinkedIn (`leads.status`, `queue` view, sender profiles) and Instagram
+  (`leads.ig_status`, `ig_queue` view, `IG_FLOW` in `lib/outreach.ts`, one shared profile, no
+  sender). Same lead, in parallel. `record_step(..., p_channel => 'ig')` moves ig_status; a
+  trigger starts ig_status at `ig_comment` when an apps lead gets an Instagram link.
 
 ## Research (`/research-leads`, procedure in `.claude/skills/research-leads/SKILL.md`)
 Cheapest checks first, so bad leads stop early:

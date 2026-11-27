@@ -375,7 +375,10 @@ export interface AppLeadInput {
   company_name?: string;
   company_website?: string;
   x_url?: string;
+  /** Founder's own Instagram. */
   instagram_url?: string;
+  /** The app's / company's Instagram (the Instagram DM goes here when the founder has none). */
+  company_instagram_url?: string;
   crunchbase_url?: string;
   email?: string;
   email_source?: string;
@@ -387,7 +390,7 @@ export interface AppLeadInput {
 
 /** The apps CSV columns, exactly as the founder research files name them. */
 export const APP_CSV_COLUMNS = [
-  'founder_name', 'founder_title', 'linkedin_url', 'x_url', 'instagram_url', 'email', 'email_source',
+  'founder_name', 'founder_title', 'linkedin_url', 'x_url', 'instagram_url', 'company_instagram_url', 'email', 'email_source',
   'email_type', 'email_alt', 'app_name', 'app_store_url', 'rating_count', 'avg_rating', 'genre',
   'release_date', 'website', 'crunchbase_url', 'tiktok_handle_found', 'yc_batch', 'source',
 ] as const;
@@ -403,6 +406,15 @@ export function normalizeXUrl(raw: string): string {
   if (handle) return `https://x.com/${handle[1].toLowerCase()}`;
   const m = v.match(/^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:x|twitter)\.com\/@?([A-Za-z0-9_]{1,15})(?:[/?#].*)?$/i);
   return m ? `https://x.com/${m[1].toLowerCase()}` : v;
+}
+
+/** "instagram.com/Jane.Doe/?igsh=…", "@jane.doe" -> "https://www.instagram.com/jane.doe". Anything else: trimmed. */
+export function normalizeInstagramUrl(raw: string): string {
+  const v = raw.trim();
+  const handle = v.match(/^@?([A-Za-z0-9._]{1,30})$/);
+  if (handle && !v.includes('.com')) return `https://www.instagram.com/${handle[1].toLowerCase()}`;
+  const m = v.match(/^(?:https?:\/\/)?(?:www\.|m\.)?instagram\.com\/([A-Za-z0-9._]{1,30})(?:[/?#].*)?$/i);
+  return m ? `https://www.instagram.com/${m[1].toLowerCase()}` : v;
 }
 
 /** Store URL as given, minus query, fragment and trailing slash (Apple's ?l=, ?platform=…). */
@@ -433,18 +445,39 @@ export function appKey(app: { app_store_url?: string | null; app_name?: string |
   return name ? `name:${name}` : null;
 }
 
-/** Person key for a founder: LinkedIn, else X, else email. null = no contact at all. */
-export function founderKey(l: { linkedin_url?: string | null; x_url?: string | null; email?: string | null }): string | null {
-  if (l.linkedin_url) return `li:${l.linkedin_url}`;
-  if (l.x_url) return `x:${l.x_url.toLowerCase()}`;
-  if (l.email) return `email:${l.email.trim().toLowerCase()}`;
-  return null;
+type FounderKeys = {
+  linkedin_url?: string | null; x_url?: string | null; email?: string | null; instagram_url?: string | null;
+  full_name?: string | null; company_name?: string | null;
+};
+
+/**
+ * Every key a founder can be matched on: LinkedIn, X, email, own Instagram; a founder reachable
+ * only through the company Instagram is matched on name + company.
+ */
+export function founderKeys(l: FounderKeys): string[] {
+  const keys = [
+    l.linkedin_url && `li:${l.linkedin_url}`,
+    l.x_url && `x:${l.x_url.toLowerCase()}`,
+    l.email && `email:${l.email.trim().toLowerCase()}`,
+    l.instagram_url && `ig:${l.instagram_url.toLowerCase()}`,
+  ].filter((k): k is string => !!k);
+  if (keys.length === 0 && l.full_name) keys.push(`name:${l.full_name.trim().toLowerCase()}|${(l.company_name ?? '').trim().toLowerCase()}`);
+  return keys;
 }
 
-/** Apps ready rule (the database checks it too): founder name + at least one of LinkedIn, email, X. */
-export function isReadyApp(l: Pick<AppLeadInput, 'first_name' | 'linkedin_url' | 'email' | 'x_url'>): boolean {
-  return !!l.first_name && (!!l.linkedin_url || !!l.email || !!l.x_url);
+/** The first (strongest) match key for a founder. null = nothing to match on. */
+export const founderKey = (l: FounderKeys): string | null => founderKeys(l)[0] ?? null;
+
+/** Apps ready rule (the database checks it too): founder name + LinkedIn, email, X or an Instagram (own or company). */
+export function isReadyApp(
+  l: Pick<AppLeadInput, 'first_name' | 'linkedin_url' | 'email' | 'x_url' | 'instagram_url' | 'company_instagram_url'>,
+): boolean {
+  return !!l.first_name && (!!l.linkedin_url || !!l.email || !!l.x_url || !!l.instagram_url || !!l.company_instagram_url);
 }
+
+/** In the Instagram sequence: has a founder or company Instagram. */
+export const hasInstagram = (l: { instagram_url?: string | null; company_instagram_url?: string | null }) =>
+  !!(l.instagram_url || l.company_instagram_url);
 
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
@@ -462,8 +495,8 @@ export function csvToAppLeads(rows: string[][]): AppLeadInput[] {
     if (i >= 0) index[col] = i;
   }
   if (index.founder_name === undefined) throw new Error('Apps CSV needs a founder_name column.');
-  if (index.linkedin_url === undefined && index.email === undefined && index.x_url === undefined) {
-    throw new Error('Apps CSV needs at least one contact column: linkedin_url, email or x_url.');
+  if (['linkedin_url', 'email', 'x_url', 'instagram_url', 'company_instagram_url'].every((c) => index[c as AppColumn] === undefined)) {
+    throw new Error('Apps CSV needs at least one contact column: linkedin_url, email, x_url, instagram_url or company_instagram_url.');
   }
   const used = new Set(Object.values(index));
   const extra = header.map((h, i) => ({ h: h.trim(), i })).filter(({ i }) => !used.has(i));
@@ -484,7 +517,8 @@ export function csvToAppLeads(rows: string[][]): AppLeadInput[] {
     }
     if (get('founder_title')) lead.title = get('founder_title');
     if (get('x_url')) lead.x_url = normalizeXUrl(get('x_url'));
-    if (get('instagram_url')) lead.instagram_url = get('instagram_url');
+    if (get('instagram_url')) lead.instagram_url = normalizeInstagramUrl(get('instagram_url'));
+    if (get('company_instagram_url')) lead.company_instagram_url = normalizeInstagramUrl(get('company_instagram_url'));
     if (get('crunchbase_url')) lead.crunchbase_url = get('crunchbase_url');
     if (get('website')) lead.company_website = get('website');
     for (const c of ['email', 'email_alt'] as const) {
@@ -541,8 +575,8 @@ export function csvToAppLeads(rows: string[][]): AppLeadInput[] {
 /**
  * Normalize and dedupe one apps upload:
  * - LinkedIn URLs that aren't profiles move to notes;
- * - rows without a founder name or without any contact (LinkedIn, email, X) are skipped;
- * - the same founder twice in the file (same LinkedIn / X / email) is kept once.
+ * - rows without a founder name or without any contact (LinkedIn, email, X, Instagram) are skipped;
+ * - the same founder twice in the file (same LinkedIn / X / email / Instagram) is kept once.
  */
 export function prepareAppLeads(leads: AppLeadInput[]) {
   const seen = new Set<string>();
@@ -557,12 +591,8 @@ export function prepareAppLeads(leads: AppLeadInput[]) {
       if (lead.linkedin_url) lead.notes = [lead.notes, `LinkedIn (not a profile): ${lead.linkedin_url}`].filter(Boolean).join('\n');
       lead.linkedin_url = null;
     }
-    const keys = [
-      lead.linkedin_url && `li:${lead.linkedin_url}`,
-      lead.x_url && `x:${lead.x_url.toLowerCase()}`,
-      lead.email && `email:${lead.email}`,
-    ].filter((k): k is string => !!k);
-    if (!lead.first_name || keys.length === 0) {
+    const keys = founderKeys(lead);
+    if (!lead.first_name || !isReadyApp(lead)) {
       noFounder++;
       continue;
     }

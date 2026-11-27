@@ -1,4 +1,4 @@
-import { FINAL_STATUSES, FLOW, pathFrom, type Button, type MessageType } from '@/lib/outreach';
+import { FINAL_STATUSES, FLOW, pathFrom, type Button, type MessageType, type Step as FlowStep } from '@/lib/outreach';
 import { TemplateEditor, type EditorTemplate } from './TemplateEditor';
 
 // The sequence diagram is drawn from FLOW in lib/outreach.ts, so it follows the sequence when
@@ -32,6 +32,10 @@ const LABELS: Record<string, string> = {
   not_accepted: 'End: invite not accepted',
   won: 'End: won',
   lost: 'End: lost',
+  ig_comment: 'Follow + comment',
+  ig_dm: 'DM 1',
+  ig_dm_sent: 'Follow-up DM',
+  ig_followup_sent: 'No answer',
 };
 const label = (s: string) => LABELS[s] ?? s;
 
@@ -69,8 +73,8 @@ function StepTotals({ status, stats }: { status: string; stats: TemplateStat[] }
   );
 }
 
-function Messages({ status, templates, stats, types }: { status: string; templates: EditorTemplate[]; stats: Map<string, TemplateStat>; types: MessageType[] }) {
-  const limit = FLOW[status]?.noteLimit ?? null;
+function Messages({ status, templates, stats, types, flow }: { status: string; templates: EditorTemplate[]; stats: Map<string, TemplateStat>; types: MessageType[]; flow: Record<string, FlowStep> }) {
+  const limit = flow[status]?.noteLimit ?? null;
   return (
     <div className={`mt-3 grid gap-3 ${types.length > 1 ? 'lg:grid-cols-3' : ''}`}>
       {types.map((type) => {
@@ -105,6 +109,7 @@ function Step({
   stats,
   statRows,
   types,
+  flow,
   mainButtonShownBelow,
 }: {
   status: string;
@@ -114,9 +119,10 @@ function Step({
   stats: Map<string, TemplateStat>;
   statRows: TemplateStat[];
   types: MessageType[];
+  flow: Record<string, FlowStep>;
   mainButtonShownBelow: boolean;
 }) {
-  const s = FLOW[status];
+  const s = flow[status];
   const final = FINAL_STATUSES.includes(status);
   const sideButtons = mainButtonShownBelow ? s.buttons.slice(1) : s.buttons;
   const own = templates.filter((t) => t.status === status);
@@ -146,7 +152,7 @@ function Step({
       {own.length > 0 && (
         <>
           <StepTotals status={status} stats={statRows} />
-          <Messages status={status} templates={own} stats={stats} types={types} />
+          <Messages status={status} templates={own} stats={stats} types={types} flow={flow} />
         </>
       )}
     </div>
@@ -165,11 +171,11 @@ function Arrow({ b }: { b: Button }) {
 }
 
 /** One-line map of the main path: numbered steps with the wait between them. Click to jump. */
-function Overview({ statuses }: { statuses: string[] }) {
+function Overview({ statuses, flow }: { statuses: string[]; flow: Record<string, FlowStep> }) {
   return (
     <div className="flex flex-wrap items-center gap-1 text-xs">
       {statuses.map((status, i) => {
-        const b = statuses[i + 1] ? FLOW[status].buttons[0] : undefined;
+        const b = statuses[i + 1] ? flow[status].buttons[0] : undefined;
         const final = FINAL_STATUSES.includes(status);
         return (
           <span key={status} className="flex items-center gap-1">
@@ -188,29 +194,32 @@ function Overview({ statuses }: { statuses: string[] }) {
 }
 
 export function Sequence({
-  templates, stats, counts, types,
-}: { templates: EditorTemplate[]; stats: TemplateStat[]; counts: Map<string, number>; types: MessageType[] }) {
+  templates, stats, counts, types, flow = FLOW, start = 'li_check',
+  note = 'From step 4 on, a reply stops the sequence: the setter clicks Replied and answers by hand.',
+}: {
+  templates: EditorTemplate[]; stats: TemplateStat[]; counts: Map<string, number>; types: MessageType[];
+  /** The sequence to draw (LinkedIn by default; Instagram for apps). */
+  flow?: Record<string, FlowStep>; start?: string; note?: string;
+}) {
   const statMap = new Map(stats.map((s) => [`${s.key}:${s.version}`, s]));
-  const main = pathFrom('li_check');
-  const other = Object.keys(FLOW).filter((s) => !main.includes(s) && !FINAL_STATUSES.includes(s));
-  const ends = FINAL_STATUSES.filter((s) => !main.includes(s));
-  const orphan = templates.filter((t) => !FLOW[t.status]);
-  const common = { templates, stats: statMap, statRows: stats, types };
+  const main = pathFrom(start, flow);
+  const other = Object.keys(flow).filter((s) => !main.includes(s) && !FINAL_STATUSES.includes(s));
+  const ends = FINAL_STATUSES.filter((s) => !main.includes(s) && s in flow);
+  const orphan = templates.filter((t) => !flow[t.status]);
+  const common = { templates, stats: statMap, statRows: stats, types, flow };
 
   return (
     <div className="flex flex-col gap-8">
       <div className="rounded-lg border border-slate-200 bg-white p-3">
-        <Overview statuses={main} />
-        <p className="mt-2 text-xs text-slate-500">
-          From step 4 on, a reply stops the sequence: the setter clicks <b>Replied</b> and answers by hand.
-        </p>
+        <Overview statuses={main} flow={flow} />
+        <p className="mt-2 text-xs text-slate-500">{note}</p>
       </div>
 
       <div>
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Main path</h3>
         {main.map((status, i) => {
           const next = main[i + 1];
-          const b = next ? FLOW[status].buttons[0] : undefined;
+          const b = next ? flow[status].buttons[0] : undefined;
           return (
             <div key={status}>
               <Step status={status} num={`${i + 1}`} n={counts.get(status) ?? 0} mainButtonShownBelow={!!b} {...common} />

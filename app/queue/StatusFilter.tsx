@@ -1,10 +1,12 @@
 'use client';
 
 /** Status dropdown for the Due view; changing it reloads the page with ?status=… */
-export function StatusFilter({ value, options, tab }: { value: string; options: { status: string; count: number }[]; tab: string }) {
+export function StatusFilter({
+  value, options, hidden,
+}: { value: string; options: { status: string; count: number }[]; hidden: Record<string, string> }) {
   return (
     <form className="text-sm">
-      <input type="hidden" name="p" value={tab} />
+      {Object.entries(hidden).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       <select
         name="status"
         defaultValue={value}

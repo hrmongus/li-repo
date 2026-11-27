@@ -1,11 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { checkMessage, clickButton, clickReplied, isSender, sendsInviteNote, step, todayStr, type Transition } from '@/lib/outreach';
+import { checkMessage, clickButton, clickReplied, isSender, sendsInviteNote, step, todayStr, type Channel, type Transition } from '@/lib/outreach';
 import { APP_FIELDS, APP_LEAD_FIELDS, ARTIST_FIELDS, changedValues, LEAD_FIELDS } from '@/lib/leadFields';
 import { createClient } from '@/lib/supabase/server';
 
-async function record(t: Transition & { lead_id: string; sender: string | null; template_key?: string | null; version?: string | null; text_sent?: string | null }) {
+async function record(t: Transition & { lead_id: string; sender: string | null; channel?: Channel; template_key?: string | null; version?: string | null; text_sent?: string | null }) {
   const supabase = await createClient();
   const args = {
     p_lead_id: t.lead_id,
@@ -17,7 +17,8 @@ async function record(t: Transition & { lead_id: string; sender: string | null; 
     p_text_sent: t.text_sent ?? null,
     p_plan_sent: t.plan_sent,
     p_li_active: t.li_active,
-    p_sender: t.sender,
+    p_sender: t.channel === 'ig' ? null : t.sender,
+    p_channel: t.channel ?? 'li',
   };
   const { error } = await supabase.rpc('record_step', args);
   if (error) return { error: error.message };
@@ -34,15 +35,18 @@ export async function clickStepAction(input: {
   text: string | null;
   templateKey: string | null;
   version: string | null;
+  /** 'ig' = the Instagram sequence (apps); default LinkedIn. */
+  channel?: Channel;
 }) {
   try {
+    const channel: Channel = input.channel === 'ig' ? 'ig' : 'li';
     const transition = clickButton(input.fromStatus, input.buttonId, todayStr());
     const button = step(input.fromStatus).buttons.find((b) => b.id === input.buttonId)!;
-    const sender = isSender(input.sender) ? input.sender : null;
-    if (!button.sends) return record({ ...transition, lead_id: input.leadId, sender });
+    const sender = channel === 'li' && isSender(input.sender) ? input.sender : null;
+    if (!button.sends) return record({ ...transition, lead_id: input.leadId, sender, channel });
 
     // No Premium: the connection request had no note, so log it without text or template.
-    if (input.fromStatus === 'warmed_up' && !sendsInviteNote(sender)) {
+    if (channel === 'li' && input.fromStatus === 'warmed_up' && !sendsInviteNote(sender)) {
       return record({ ...transition, lead_id: input.leadId, sender, template_key: null, version: null, text_sent: '' });
     }
     const text = input.text ?? '';
@@ -52,6 +56,7 @@ export async function clickStepAction(input: {
       ...transition,
       lead_id: input.leadId,
       sender,
+      channel,
       template_key: input.templateKey,
       version: input.templateKey ? input.version : null,
       text_sent: text,
@@ -127,10 +132,11 @@ export async function saveLeadDetails(input: {
   }
 }
 
-export async function repliedAction(input: { leadId: string; fromStatus: string; sender: string | null }) {
+export async function repliedAction(input: { leadId: string; fromStatus: string; sender: string | null; channel?: Channel }) {
   try {
-    const sender = isSender(input.sender) ? input.sender : null;
-    return record({ ...clickReplied(input.fromStatus, todayStr()), lead_id: input.leadId, sender });
+    const channel: Channel = input.channel === 'ig' ? 'ig' : 'li';
+    const sender = channel === 'li' && isSender(input.sender) ? input.sender : null;
+    return record({ ...clickReplied(input.fromStatus, todayStr()), lead_id: input.leadId, sender, channel });
   } catch (e) {
     return { error: (e as Error).message };
   }
