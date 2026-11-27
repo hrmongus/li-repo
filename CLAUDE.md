@@ -9,7 +9,9 @@ ask.
 ## Stack
 - **App:** Next.js 15 (App Router, TypeScript, server actions) and Tailwind 4.
 - **Data and auth:** Supabase (Postgres + Auth).
-- **Deploy:** Vercel.
+- **Deploy:** Vercel. Production = the repo's default branch `claude/sweet-volta-afc0m5` (there is
+  no `main`). Owner's standing rule: always ship finished work to production: apply new migrations
+  to the live `crm` Supabase project, merge to the default branch, check the Vercel deploy.
 - **Tests:** Vitest.
 
 ## Folder layout
