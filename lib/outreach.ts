@@ -11,9 +11,19 @@
 // ---------- Types ----------
 
 export type Version = 'A' | 'B';
-export type CompanyType = 'label' | 'management' | 'agency' | 'distributor' | 'other';
-/** The three message families. Follows company_type; distributors and "other" get none. */
-export type MessageType = 'label' | 'management' | 'agency';
+export type CompanyType = 'label' | 'management' | 'agency' | 'distributor' | 'other' | 'app';
+/** The message families. Follows company_type; distributors and "other" get none. 'app' = apps vertical. */
+export type MessageType = 'label' | 'management' | 'agency' | 'app';
+
+/** Lead vertical: music (labels, managers, agencies) or apps (app founders). */
+export type Vertical = 'music' | 'apps';
+export const VERTICALS: Vertical[] = ['music', 'apps'];
+export const isVertical = (v: unknown): v is Vertical => v === 'music' || v === 'apps';
+/** Message types (template audiences) per vertical. */
+export const MESSAGE_TYPES: Record<Vertical, MessageType[]> = {
+  music: ['label', 'management', 'agency'],
+  apps: ['app'],
+};
 export type ResearchStatus = 'new' | 'artists_found' | 'enriched' | 'ready' | 'disqualified';
 
 /** Dates are 'YYYY-MM-DD' strings (Postgres `date`). */
@@ -38,6 +48,13 @@ export interface Artist {
   monthly_listeners: number | null;
   latest_release_title: string | null;
   top_cities: string | null;
+}
+
+/** Primary app of an apps lead (apps table). */
+export interface App {
+  app_name: string;
+  rating_count: number | null;
+  genre: string | null;
 }
 
 export interface Template {
@@ -279,9 +296,11 @@ export function daysBetween(a: DateStr, b: DateStr): number {
 
 // ---------- Message type ----------
 
-/** label → label, management → management, agency → agency; anything else has no messages. */
+/** label → label, management → management, agency → agency, app → app; anything else has no messages. */
 export function messageType(companyType: CompanyType | null): MessageType | null {
-  return companyType === 'label' || companyType === 'management' || companyType === 'agency' ? companyType : null;
+  return companyType === 'label' || companyType === 'management' || companyType === 'agency' || companyType === 'app'
+    ? companyType
+    : null;
 }
 
 // ---------- A/B ----------
@@ -333,8 +352,13 @@ export function pickTemplate(templates: Template[], lead: Lead): Template | null
 // ---------- Rendering ----------
 
 export const PLACEHOLDERS = ['First', 'Company', 'Artist', 'Song', 'City'];
+/** Apps templates: founder's first name, company, app name. */
+export const APP_PLACEHOLDERS = ['firstName', 'company', 'app_name'];
 
-export function placeholderValues(lead: Lead, artist: Artist | null): Record<string, string | null> {
+export function placeholderValues(lead: Lead, artist: Artist | null, app: App | null = null): Record<string, string | null> {
+  if (lead.company_type === 'app') {
+    return { firstName: lead.first_name, company: lead.company_name, app_name: app?.app_name ?? null };
+  }
   return {
     First: lead.first_name,
     Company: lead.company_name,
@@ -369,8 +393,8 @@ export function checkMessage(text: string, limit: number | null = null): Message
 }
 
 /** Pre-filled message for the lead's current step. */
-export function renderMessage(template: Template, lead: Lead, artist: Artist | null) {
-  const text = fillTemplate(template.body, placeholderValues(lead, artist));
+export function renderMessage(template: Template, lead: Lead, artist: Artist | null, app: App | null = null) {
+  const text = fillTemplate(template.body, placeholderValues(lead, artist, app));
   return { text, check: checkMessage(text, step(lead.status).noteLimit ?? null) };
 }
 
@@ -427,8 +451,8 @@ export function queueScore(
   let score = 0;
   if (lead.status === 'replied') score += 1000; // replied leads always on top
 
-  if (lead.company_type === 'agency') {
-    score += 15;
+  if (lead.company_type === 'agency' || lead.company_type === 'app') {
+    score += 15; // agencies and app founders: flat
   } else {
     const top = lead.top_artist_listeners ?? 0;
     if (top >= 1_000_000) score += 30; // 1M–4M (over 4M is disqualified)

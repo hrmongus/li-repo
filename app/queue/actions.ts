@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { checkMessage, clickButton, clickReplied, isSender, sendsInviteNote, step, todayStr, type Transition } from '@/lib/outreach';
-import { ARTIST_FIELDS, changedValues, LEAD_FIELDS } from '@/lib/leadFields';
+import { APP_FIELDS, APP_LEAD_FIELDS, ARTIST_FIELDS, changedValues, LEAD_FIELDS } from '@/lib/leadFields';
 import { createClient } from '@/lib/supabase/server';
 
 async function record(t: Transition & { lead_id: string; sender: string | null; template_key?: string | null; version?: string | null; text_sent?: string | null }) {
@@ -63,14 +63,17 @@ export async function clickStepAction(input: {
 
 type Row = Record<string, unknown>;
 
-/** "Show all": the lead row and its artists, every column. */
-export async function getLeadDetails(leadId: string): Promise<{ lead: Row | null; artists: Row[]; error: string | null }> {
+/** "Show all": the lead row and its artists (music) or apps (apps vertical), every column. */
+export async function getLeadDetails(
+  leadId: string,
+): Promise<{ lead: Row | null; artists: Row[]; apps: Row[]; error: string | null }> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from('leads').select('*, artists(*)').eq('id', leadId).single();
-  if (error) return { lead: null, artists: [], error: error.message };
-  const { artists, ...lead } = data as Row & { artists: Row[] };
+  const { data, error } = await supabase.from('leads').select('*, artists(*), apps(*)').eq('id', leadId).single();
+  if (error) return { lead: null, artists: [], apps: [], error: error.message };
+  const { artists, apps, ...lead } = data as Row & { artists: Row[]; apps: Row[] };
   artists.sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
-  return { lead, artists, error: null };
+  apps.sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
+  return { lead, artists, apps, error: null };
 }
 
 /**
@@ -81,6 +84,7 @@ export async function saveLeadDetails(input: {
   leadId: string;
   lead: Record<string, string>;
   artists: { id: string; values: Record<string, string> }[];
+  apps?: { id: string; values: Record<string, string> }[];
 }): Promise<{ error: string | null; changed: number }> {
   try {
     const current = await getLeadDetails(input.leadId);
@@ -88,7 +92,8 @@ export async function saveLeadDetails(input: {
     const supabase = await createClient();
     let changed = 0;
 
-    const leadPatch = changedValues(LEAD_FIELDS, current.lead, input.lead);
+    const isApps = current.lead.vertical === 'apps';
+    const leadPatch = changedValues(isApps ? APP_LEAD_FIELDS : LEAD_FIELDS, current.lead, input.lead);
     if (Object.keys(leadPatch).length > 0) {
       const { error } = await supabase.from('leads').update(leadPatch).eq('id', input.leadId);
       if (error) {
@@ -103,6 +108,15 @@ export async function saveLeadDetails(input: {
       const patch = changedValues(ARTIST_FIELDS, before, a.values);
       if (Object.keys(patch).length === 0) continue;
       const { error } = await supabase.from('artists').update(patch).eq('id', a.id).eq('lead_id', input.leadId);
+      if (error) return { error: error.message, changed };
+      changed += Object.keys(patch).length;
+    }
+    for (const a of input.apps ?? []) {
+      const before = current.apps.find((x) => x.id === a.id);
+      if (!before) continue;
+      const patch = changedValues(APP_FIELDS, before, a.values);
+      if (Object.keys(patch).length === 0) continue;
+      const { error } = await supabase.from('apps').update(patch).eq('id', a.id).eq('lead_id', input.leadId);
       if (error) return { error: error.message, changed };
       changed += Object.keys(patch).length;
     }

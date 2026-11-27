@@ -2,7 +2,7 @@
 // and how typed input is turned into a database value. Pure functions, no I/O.
 import { normalizeLinkedinUrl } from './leads';
 
-export type FieldKind = 'text' | 'longtext' | 'int' | 'date' | 'timestamp' | 'select' | 'bool';
+export type FieldKind = 'text' | 'longtext' | 'int' | 'decimal' | 'date' | 'timestamp' | 'select' | 'bool';
 
 export interface Field {
   key: string;
@@ -43,6 +43,46 @@ export const LEAD_FIELDS: Field[] = [
   { key: 'id', kind: 'text', editable: false },
 ];
 
+/** Apps vertical: founder lead fields. company_type stays 'app' (tied to the vertical). */
+export const APP_LEAD_FIELDS: Field[] = [
+  { key: 'full_name', kind: 'text', editable: true },
+  { key: 'first_name', kind: 'text', editable: true },
+  { key: 'title', kind: 'text', editable: true },
+  { key: 'company_name', kind: 'text', editable: true },
+  { key: 'company_website', kind: 'text', editable: true },
+  { key: 'linkedin_url', kind: 'text', editable: true },
+  { key: 'x_url', kind: 'text', editable: true },
+  { key: 'instagram_url', kind: 'text', editable: true },
+  { key: 'crunchbase_url', kind: 'text', editable: true },
+  { key: 'email', kind: 'text', editable: true },
+  { key: 'email_type', kind: 'text', editable: true },
+  { key: 'email_source', kind: 'text', editable: true },
+  { key: 'email_alt', kind: 'text', editable: true },
+  { key: 'country', kind: 'text', editable: true },
+  { key: 'company_staff', kind: 'int', editable: true },
+  { key: 'plan_url', kind: 'text', editable: true },
+  { key: 'notes', kind: 'longtext', editable: true },
+  ...LEAD_FIELDS.filter((f) => !f.editable),
+  { key: 'company_type', kind: 'text', editable: false },
+  { key: 'vertical', kind: 'text', editable: false },
+];
+
+export const APP_FIELDS: Field[] = [
+  { key: 'app_name', kind: 'text', editable: true },
+  { key: 'app_store_url', kind: 'text', editable: true },
+  { key: 'rating_count', kind: 'int', editable: true },
+  { key: 'avg_rating', kind: 'decimal', editable: true },
+  { key: 'genre', kind: 'text', editable: true },
+  { key: 'release_date', kind: 'date', editable: true },
+  { key: 'tiktok_handle', kind: 'text', editable: true },
+  { key: 'yc_batch', kind: 'text', editable: true },
+  { key: 'source', kind: 'text', editable: true },
+  { key: 'notes', kind: 'longtext', editable: true },
+  { key: 'is_primary', kind: 'bool', editable: false },
+  { key: 'created_at', kind: 'timestamp', editable: false },
+  { key: 'id', kind: 'text', editable: false },
+];
+
 export const ARTIST_FIELDS: Field[] = [
   { key: 'name', kind: 'text', editable: true },
   { key: 'spotify_url', kind: 'text', editable: true },
@@ -65,6 +105,7 @@ export function parseField(field: Field, raw: string): string | number | null {
   const v = raw.trim();
   if (v === '') {
     if (field.key === 'name') throw new Error('Artist name cannot be empty');
+    if (field.key === 'app_name') throw new Error('App name cannot be empty');
     return null;
   }
   switch (field.kind) {
@@ -73,6 +114,14 @@ export function parseField(field: Field, raw: string): string | number | null {
       if (!/^\d+$/.test(digits)) throw new Error(`${field.key}: whole number expected, got "${v}"`);
       return Number(digits);
     }
+    case 'decimal': {
+      const n = Number(v.replace(',', '.'));
+      if (!Number.isFinite(n)) throw new Error(`${field.key}: number expected, got "${v}"`);
+      return n;
+    }
+    case 'date':
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(v))) throw new Error(`${field.key}: date YYYY-MM-DD expected, got "${v}"`);
+      return v;
     case 'select':
       if (!field.options!.includes(v)) throw new Error(`${field.key}: one of ${field.options!.join(', ')}`);
       return v;

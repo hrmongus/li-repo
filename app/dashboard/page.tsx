@@ -1,5 +1,6 @@
-import { DISQUALIFY_REASONS, FLOW, pathFrom } from '@/lib/outreach';
+import { DISQUALIFY_REASONS, FLOW, MESSAGE_TYPES, pathFrom } from '@/lib/outreach';
 import { createClient } from '@/lib/supabase/server';
+import { getVertical } from '../vertical';
 import { Sequence, type TemplateStat } from './Sequence';
 import { type EditorTemplate } from './TemplateEditor';
 
@@ -24,10 +25,12 @@ function Box({ label, n, tone = 'plain' }: { label: string; n: number; tone?: 'p
 
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const vertical = await getVertical();
+  const types = MESSAGE_TYPES[vertical];
   const [leadsRes, statsRes, templatesRes] = await Promise.all([
-    supabase.from('lead_counts').select('status, research_status, disqualify_reason, n'),
-    supabase.from('template_stats').select('*').order('key').order('version'),
-    supabase.from('message_templates').select('*').order('status').order('key').order('version'),
+    supabase.from('lead_counts').select('status, research_status, disqualify_reason, n').eq('vertical', vertical),
+    supabase.from('template_stats').select('*').in('message_type', types).order('key').order('version'),
+    supabase.from('message_templates').select('*').in('audience', types).order('status').order('key').order('version'),
   ]);
   for (const r of [leadsRes, statsRes, templatesRes]) if (r.error) throw new Error(r.error.message);
 
@@ -57,24 +60,35 @@ export default async function DashboardPage() {
             <Box key={s} label={s} n={counts.get(s) ?? 0} />
           ))}
         </div>
-        <h3 className="mb-2 mt-4 text-sm font-semibold">Disqualified, per reason</h3>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
-          {DISQUALIFY_REASONS.map((r) => (
-            <Box key={r} label={r} n={reasons.get(r) ?? 0} tone="red" />
-          ))}
-        </div>
+        {vertical === 'music' && (
+          <>
+            <h3 className="mb-2 mt-4 text-sm font-semibold">Disqualified, per reason</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
+              {DISQUALIFY_REASONS.map((r) => (
+                <Box key={r} label={r} n={reasons.get(r) ?? 0} tone="red" />
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
       <section>
         <h2 className="mb-1 font-semibold">Sequence and messages</h2>
-        <p className="mb-4 text-xs text-slate-500">
-          What the setter does at each step, which button moves the lead on, and when the next step is due. Each message
-          step shows label / management / agency side by side; edit the text right here. Placeholders:{' '}
-          {'{First} {Company} {Artist} {Song} {City}'} (agency messages use only {'{First}'} and {'{Company}'}). Text in
-          [square brackets] blocks Copy until the setter replaces it. One A/B test at a time: only the invites have a B
-          version (no note).
-        </p>
-        <Sequence templates={templates} stats={stats} counts={counts} />
+        {vertical === 'music' ? (
+          <p className="mb-4 text-xs text-slate-500">
+            What the setter does at each step, which button moves the lead on, and when the next step is due. Each message
+            step shows label / management / agency side by side; edit the text right here. Placeholders:{' '}
+            {'{First} {Company} {Artist} {Song} {City}'} (agency messages use only {'{First}'} and {'{Company}'}). Text in
+            [square brackets] blocks Copy until the setter replaces it. One A/B test at a time: only the invites have a B
+            version (no note).
+          </p>
+        ) : (
+          <p className="mb-4 text-xs text-slate-500">
+            Apps: the same steps and buttons as music, one message type (app). Edit the text right here. Placeholders:{' '}
+            {'{firstName} {company} {app_name}'}. Text in [square brackets] blocks Copy until the setter replaces it.
+          </p>
+        )}
+        <Sequence templates={templates} stats={stats} counts={counts} types={types} />
       </section>
 
       <details>
