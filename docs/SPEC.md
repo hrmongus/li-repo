@@ -311,18 +311,34 @@ and Upload show only that vertical (`leads.vertical`). Music is unchanged.
 - **Leads:** `vertical = 'apps'`, `company_type = 'app'` (the database ties the two), plus
   `x_url`, `instagram_url`, `crunchbase_url`, `email_source`, `email_type`, `email_alt`. The app
   is a row in `apps`; `company_name` = the app's name.
-- **Ready:** founder name + at least one contact (LinkedIn, email or X). The database enforces
-  it. Only founders with a LinkedIn URL reach the Due queue (the sequence is LinkedIn).
-- **Sequence:** the same statuses, buttons, LinkedIn check, sender profiles, company cap and
-  record_step as music. Queue score: a flat 15 (like agencies) + activity + overdue.
-- **Templates:** audience `app`, the same 4 steps (invite_app, msg1_app, followup_app,
-  breakup_app). Placeholders `{firstName} {company} {app_name}`.
+- **Ready:** founder name + at least one contact (LinkedIn, email, X, own Instagram or company
+  Instagram). The database enforces it.
+- **Two channels, same lead** (Queue → Apps → LinkedIn | Instagram). A founder with both is worked
+  on both in parallel; with one, only there.
+  - **LinkedIn:** founders with a LinkedIn URL. The same statuses, buttons, LinkedIn check, sender
+    profiles, company cap and record_step as music. Queue score: a flat 15 (like agencies) +
+    activity + overdue.
+  - **Instagram:** founders with their own Instagram (`instagram_url`) or a company Instagram
+    (`company_instagram_url`). One shared Instagram profile: no Andrej / Narek / Mher, no VA
+    check, no daily limit (the queue shows DMs sent today). Progress in `ig_status` /
+    `ig_next_action_at` (set to `ig_comment`, due today, as soon as a link is there). Steps:
+    Follow + comment on a recent post → Commented (+1 day) → DM 1 → Sent (+4) → follow-up DM →
+    Sent (+7) → No reply. "Replied" works at every step, then the same Plan sent / Call booked /
+    Won / Lost as LinkedIn. One lead per Instagram account (founders without their own Instagram
+    share the company's), so an account is never DMed twice. Score: flat 15 + overdue.
+  - Every click is logged with its channel (`activity.channel`); A/B stats count outcomes on the
+    send's own channel.
+- **Templates:** audience `app`. LinkedIn: invite_app, msg1_app, followup_app, breakup_app.
+  Instagram: dm1_app_ig (from `ig_dm`), followup_app_ig (from `ig_dm_sent`). Placeholders
+  `{firstName} {company} {app_name}`.
 - **Card:** app name, rating count, genre, LinkedIn / X / Crunchbase / website links, email +
   type (instead of the artist block).
-- **Upload (CSV):** founder_name, founder_title, linkedin_url, x_url, instagram_url, email,
+- **Upload (CSV):** founder_name, founder_title, linkedin_url, x_url, instagram_url,
+  company_instagram_url, email,
   email_source, email_type, email_alt, app_name, app_store_url, rating_count, avg_rating, genre,
   release_date, website, crunchbase_url, tiktok_handle_found, yc_batch, source (other columns go
-  to notes). Founders are matched on LinkedIn URL (else X, else email): new ones are added (ready
+  to notes). Founders are matched on LinkedIn URL, X, email or own Instagram (Instagram-only via the
+  company account: name + company): new ones are added (ready
   when complete, else enriched) with their app as the primary apps row; existing ones get filled
   cells and a replaced app, never a status change. Max 2 founders per app (deduped on
   app_store_url). A LinkedIn URL that belongs to a music lead is never converted.

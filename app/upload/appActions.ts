@@ -6,6 +6,7 @@ import {
   capFounders,
   csvToAppLeads,
   founderKey,
+  founderKeys,
   isReadyApp,
   parseCsv,
   prepareAppLeads,
@@ -20,7 +21,7 @@ export interface AppUploadResult {
   /** Of the added and updated founders: how many are ready for outreach. */
   ready?: number;
   duplicatesInFile?: number;
-  /** Rows without a founder name or without any contact (LinkedIn, email, X). */
+  /** Rows without a founder name or without any contact (LinkedIn, email, X, Instagram). */
   noFounder?: number;
   /** New founders skipped because their app already has 2 founders. */
   overCap?: number;
@@ -36,7 +37,7 @@ const IN_BATCH = 50; // .in(...) lists go into the URL; keep them short
 const IN_RESEARCH = ['new', 'artists_found', 'enriched'];
 const CONTACT_FIELDS = [
   'full_name', 'first_name', 'title', 'company_name', 'company_website', 'linkedin_url', 'x_url',
-  'instagram_url', 'crunchbase_url', 'email', 'email_source', 'email_type', 'email_alt',
+  'instagram_url', 'company_instagram_url', 'crunchbase_url', 'email', 'email_source', 'email_type', 'email_alt',
 ] as const;
 
 async function readAll(build: (from: number) => PromiseLike<{ data: Row[] | null; error: { message: string } | null }>) {
@@ -73,9 +74,10 @@ async function replacePrimaryApp(supabase: Supabase, leadId: string, l: AppLeadI
 
 /**
  * Apps CSV upload: upsert founders (leads, vertical 'apps', company_type 'app') matched on LinkedIn
- * URL (else X, else email), and their app as the primary apps row. Max 2 founders per app, deduped
- * on app_store_url. A new founder is ready when they have a name and a contact (LinkedIn, email or
- * X), otherwise enriched. Existing founders: filled cells update the lead and the app is replaced;
+ * URL, X, email or Instagram, and their app as the primary apps row. Max 2 founders per app, deduped
+ * on app_store_url. A new founder is ready when they have a name and a contact (LinkedIn, email, X
+ * or Instagram), otherwise enriched. Founders with an Instagram (own or company) are also in the
+ * Instagram sequence (ig_status starts empty = comment step). Existing founders: filled cells update the lead and the app is replaced;
  * their outreach status is never touched (a lead still in research is promoted to ready when complete).
  */
 export async function uploadAppLeads(_prev: AppUploadResult | null, formData: FormData): Promise<AppUploadResult> {
@@ -96,21 +98,14 @@ export async function uploadAppLeads(_prev: AppUploadResult | null, formData: Fo
     const existingLeads = await readAll((from) =>
       supabase
         .from('leads')
-        .select('id, linkedin_url, x_url, email, first_name, research_status, notes')
+        .select('id, linkedin_url, x_url, email, email_type, instagram_url, company_instagram_url, full_name, company_name, first_name, research_status, notes')
         .eq('vertical', 'apps')
         .range(from, from + 999),
     );
     const byKey = new Map<string, Row>();
-    for (const l of existingLeads) {
-      if (l.linkedin_url) byKey.set(`li:${l.linkedin_url}`, l);
-      if (l.x_url) byKey.set(`x:${String(l.x_url).toLowerCase()}`, l);
-      if (l.email) byKey.set(`email:${String(l.email).toLowerCase()}`, l);
-    }
+    for (const l of existingLeads) for (const k of founderKeys(l)) byKey.set(k, l);
     const findExisting = (l: AppLeadInput): Row | undefined =>
-      [l.linkedin_url && `li:${l.linkedin_url}`, l.x_url && `x:${l.x_url.toLowerCase()}`, l.email && `email:${l.email}`]
-        .filter((k): k is string => !!k)
-        .map((k) => byKey.get(k))
-        .find(Boolean);
+      founderKeys(l).map((k) => byKey.get(k)).find(Boolean);
 
     const existingApps = await readAll((from) =>
       supabase.from('apps').select('lead_id, app_name, app_store_url').eq('is_primary', true).range(from, from + 999),
@@ -149,7 +144,7 @@ export async function uploadAppLeads(_prev: AppUploadResult | null, formData: Fo
     let added = 0;
     for (let i = 0; i < fresh.length; i += BATCH) {
       const chunk = fresh.slice(i, i + BATCH);
-      const { data, error } = await supabase.from('leads').insert(chunk.map(newLeadRow)).select('id, linkedin_url, x_url, email, research_status');
+      const { data, error } = await supabase.from('leads').insert(chunk.map(newLeadRow)).select('id, linkedin_url, x_url, email, email_type, instagram_url, full_name, company_name, research_status');
       if (error) throw new Error(`Adding founders failed: ${error.message}`);
       const idByKey = new Map((data ?? []).map((r) => [founderKey(r), r]));
       const apps = [];
@@ -179,6 +174,8 @@ export async function uploadAppLeads(_prev: AppUploadResult | null, formData: Fo
         linkedin_url: l.linkedin_url ?? old.linkedin_url,
         email: l.email ?? old.email,
         x_url: l.x_url ?? old.x_url,
+        instagram_url: l.instagram_url ?? old.instagram_url,
+        company_instagram_url: l.company_instagram_url ?? old.company_instagram_url,
       };
       if (IN_RESEARCH.includes(old.research_status) && isReadyApp(merged)) patch.research_status = 'ready';
       const { error } = await supabase.from('leads').update(patch).eq('id', old.id);

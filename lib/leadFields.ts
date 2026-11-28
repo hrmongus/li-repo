@@ -53,6 +53,7 @@ export const APP_LEAD_FIELDS: Field[] = [
   { key: 'linkedin_url', kind: 'text', editable: true },
   { key: 'x_url', kind: 'text', editable: true },
   { key: 'instagram_url', kind: 'text', editable: true },
+  { key: 'company_instagram_url', kind: 'text', editable: true },
   { key: 'crunchbase_url', kind: 'text', editable: true },
   { key: 'email', kind: 'text', editable: true },
   { key: 'email_type', kind: 'text', editable: true },
@@ -63,12 +64,16 @@ export const APP_LEAD_FIELDS: Field[] = [
   { key: 'plan_url', kind: 'text', editable: true },
   { key: 'notes', kind: 'longtext', editable: true },
   ...LEAD_FIELDS.filter((f) => !f.editable),
+  { key: 'ig_status', kind: 'text', editable: false },
+  { key: 'ig_next_action_at', kind: 'date', editable: false },
+  { key: 'ig_status_changed_at', kind: 'timestamp', editable: false },
   { key: 'company_type', kind: 'text', editable: false },
   { key: 'vertical', kind: 'text', editable: false },
 ];
 
 export const APP_FIELDS: Field[] = [
   { key: 'app_name', kind: 'text', editable: true },
+  { key: 'app_name_short', kind: 'text', editable: true },
   { key: 'app_store_url', kind: 'text', editable: true },
   { key: 'rating_count', kind: 'int', editable: true },
   { key: 'avg_rating', kind: 'decimal', editable: true },

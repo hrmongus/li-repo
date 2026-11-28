@@ -2,10 +2,14 @@
 
 import { useEffect } from 'react';
 
-/** Remembers the chosen queue tab (profile) in a cookie, so each setter stays on their own tab. */
-export function RememberTab({ tab }: { tab: string }) {
+/**
+ * Remembers the chosen queue tab (profile) in a cookie, so each setter stays on their own tab;
+ * for Apps also the channel section (LinkedIn / Instagram).
+ */
+export function RememberTab({ tab, channel }: { tab: string; channel?: string }) {
   useEffect(() => {
     document.cookie = `queue_tab=${encodeURIComponent(tab)}; path=/; max-age=31536000; samesite=lax`;
-  }, [tab]);
+    if (channel) document.cookie = `queue_ch=${encodeURIComponent(channel)}; path=/; max-age=31536000; samesite=lax`;
+  }, [tab, channel]);
   return null;
 }

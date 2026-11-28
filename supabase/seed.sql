@@ -68,6 +68,14 @@ $${firstName}, still happy to send the page plan and 3 sample edits for {app_nam
 ('breakup_app', 'A', 'follow_up_sent', 'app', 'Breakup: app',
 $$Last one from me, {firstName}. Is TikTok growth for {app_name} something you look after, or someone else at {company}?
 
-Happy to get out of your inbox either way.$$)
+Happy to get out of your inbox either way.$$),
+
+-- Apps on Instagram (status = the Instagram step a DM is sent from)
+('dm1_app_ig', 'A', 'ig_dm', 'app', 'Instagram DM 1: app',
+$$Hey {firstName}, love what you're building with {app_name}. Quick one: have you tried faceless TikTok pages for it (fan-style pages posting short edits, nobody on camera)?
+
+I sketched a page plan for {app_name} plus 3 sample edits. Want me to send it?$$),
+('followup_app_ig', 'A', 'ig_dm_sent', 'app', 'Instagram follow-up: app',
+$${firstName}, still happy to send the page plan and 3 sample edits for {app_name}. Just say yes and they're yours.$$)
 
 on conflict (key, version) do nothing;

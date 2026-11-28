@@ -8,6 +8,10 @@ import {
   sendsInviteNote,
   type QueueTab,
   FLOW,
+  IG_FLOW,
+  IG_START,
+  flowFor,
+  type Channel,
   messageType,
   pickTemplate,
   queueScore,
@@ -67,7 +71,7 @@ function toArtist(a: Row | null | undefined): Artist | null {
 
 function toApp(a: Row | null | undefined): App | null {
   if (!a || !a.app_name) return null;
-  return { app_name: a.app_name, rating_count: a.rating_count ?? null, genre: a.genre ?? null };
+  return { app_name: a.app_name, app_name_short: a.app_name_short ?? null, rating_count: a.rating_count ?? null, genre: a.genre ?? null };
 }
 
 /** Why the current profile can't click this lead's buttons (null = it can). The database checks too. */
@@ -82,15 +86,19 @@ function blockedFor(l: Row, acting: string | null): string | null {
 
 function toCard(
   l: Row, artist: Artist | null, templates: Template[], today: string, withScore: boolean, acting: string | null,
-  app: App | null = null,
+  app: App | null = null, channel: Channel = 'li',
 ): CardProps {
-  const lead = l as Lead;
+  const ig = channel === 'ig';
+  // Instagram (apps): its own step and due date on the same lead (ig_status, ig_next_action_at).
+  const status: string = ig ? (l.ig_status ?? IG_START) : l.status;
+  const nextActionAt: string | null = ig ? l.ig_next_action_at : l.next_action_at;
+  const lead = { ...(l as Lead), status, next_action_at: nextActionAt };
   const type = messageType(l.company_type);
   // Agencies and app founders need no artist; label and management leads need their primary artist.
-  const ready = l.research_status === 'ready' && type !== null && (type === 'agency' || type === 'app' || artist !== null) && FLOW[l.status] !== undefined;
-  const s = ready ? step(l.status) : null;
+  const ready = l.research_status === 'ready' && type !== null && (type === 'agency' || type === 'app' || artist !== null) && flowFor(channel)[status] !== undefined;
+  const s = ready ? step(status) : null;
   let message: CardProps['message'] = null;
-  if (s && s.buttons.some((b) => b.sends) && l.status === 'warmed_up' && acting && !sendsInviteNote(acting)) {
+  if (!ig && s && s.buttons.some((b) => b.sends) && status === 'warmed_up' && acting && !sendsInviteNote(acting)) {
     // No Premium: the request goes out without a note, and isn't counted in the invite A stats.
     message = { text: '', templateKey: null, version: null, templateTitle: null, noNote: acting };
   } else if (s && s.buttons.some((b) => b.sends)) {
@@ -110,13 +118,14 @@ function toCard(
     company: [l.company_name, l.company_type && !type ? `(${l.company_type})` : null].filter(Boolean).join(' ') || null,
     linkedinUrl: l.linkedin_url,
     researchStatus: l.research_status,
-    status: l.status,
-    nextActionAt: l.next_action_at,
+    status,
+    nextActionAt,
     messageType: type,
     disqualifyReason: l.disqualify_reason,
     planUrl: l.plan_url,
-    liActivity: activityLabel(l.last_li_activity, l.li_checked_at, today),
-    score: withScore && ready ? queueScore(lead, today) : null,
+    liActivity: ig ? null : activityLabel(l.last_li_activity, l.li_checked_at, today),
+    // Instagram: LinkedIn activity doesn't count there.
+    score: withScore && ready ? queueScore(ig ? { ...lead, last_li_activity: null, li_checked_at: null } : lead, today) : null,
     artist: artist && type !== 'app' ? { name: artist.name, listeners: artist.monthly_listeners, extra } : null,
     app:
       type === 'app'
@@ -129,55 +138,95 @@ function toCard(
             website: l.company_website ?? null,
             email: l.email ?? null,
             emailType: l.email_type ?? null,
+            instagramUrl: l.instagram_url ?? l.lead_instagram_url ?? null,
+            companyInstagramUrl: l.company_instagram_url ?? null,
           }
         : null,
+    channel,
+    otherChannel:
+      type !== 'app'
+        ? null
+        : ig
+          ? l.linkedin_url && l.research_status === 'ready' ? `LinkedIn: ${l.status}` : null
+          : l.ig_status
+            ? `Instagram: ${l.ig_status}`
+            : null,
     ready,
     action: s?.action ?? '',
     buttons: s?.buttons ?? [],
     canReply: s?.canReply ?? false,
     message,
     noteLimit: s?.noteLimit ?? null,
-    owner: l.sender ?? null,
-    actingSender: acting,
-    blocked: ready ? blockedFor(l, acting) : null,
+    owner: ig ? null : l.sender ?? null,
+    actingSender: ig ? null : acting,
+    blocked: ready && !ig ? blockedFor(l, acting) : null,
   };
 }
 
 export default async function QueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; q?: string; status?: string; research?: string; type?: string; p?: string }>;
+  searchParams: Promise<{ view?: string; q?: string; status?: string; research?: string; type?: string; p?: string; ch?: string }>;
 }) {
   const sp = await searchParams;
   const view = sp.view === 'all' ? 'all' : 'due';
+  const jar = await cookies();
   // Which profile is working (tab). Remembered in a cookie so a setter stays on their own tab.
-  const saved = (await cookies()).get('queue_tab')?.value;
+  const saved = jar.get('queue_tab')?.value;
   const pick = sp.p ?? saved;
   const qtab: QueueTab = isSender(pick) ? pick : 'li_check';
-  const acting = qtab === 'li_check' ? null : qtab;
   const today = todayStr();
   const vertical = await getVertical();
+  // Apps has two sections: LinkedIn (same as music) and Instagram (one shared profile). Remembered too.
+  const channel: Channel = vertical === 'apps' && (sp.ch ?? jar.get('queue_ch')?.value) === 'ig' ? 'ig' : 'li';
+  const ig = channel === 'ig';
+  const acting = ig || qtab === 'li_check' ? null : qtab;
+  const flow = flowFor(channel);
   const supabase = await createClient();
 
   const { data: templateRows, error: tErr } = await supabase.from('message_templates').select('*').eq('active', true);
   if (tErr) throw new Error(tErr.message);
   const templates = (templateRows ?? []) as Template[];
 
-  // Connection requests sent today per profile ("Sent" clicks on warmed_up), reset at midnight Bratislava time.
-  const { data: inviteRows, error: iErr } = await supabase
-    .from('activity')
-    .select('sender')
-    .eq('from_status', 'warmed_up')
-    .eq('to_status', 'connection_requested')
-    .gte('created_at', dayStartUtc(today));
-  if (iErr) throw new Error(iErr.message);
-  const invites = SENDERS.map((x) => ({ ...x, sent: (inviteRows ?? []).filter((r) => r.sender === x.name).length }));
+  // LinkedIn: connection requests sent today per profile ("Sent" clicks on warmed_up), reset at midnight
+  // Bratislava time. Instagram: first DMs sent today (no limit).
+  let invites: { name: string; dailyLimit: number; sent: number }[] = [];
+  let igDmsToday = 0;
+  if (ig) {
+    const { count, error } = await supabase
+      .from('activity')
+      .select('id', { count: 'exact', head: true })
+      .eq('channel', 'ig')
+      .eq('from_status', 'ig_dm')
+      .gte('created_at', dayStartUtc(today));
+    if (error) throw new Error(error.message);
+    igDmsToday = count ?? 0;
+  } else {
+    const { data: inviteRows, error: iErr } = await supabase
+      .from('activity')
+      .select('sender')
+      .eq('from_status', 'warmed_up')
+      .eq('to_status', 'connection_requested')
+      .gte('created_at', dayStartUtc(today));
+    if (iErr) throw new Error(iErr.message);
+    invites = SENDERS.map((x) => ({ ...x, sent: (inviteRows ?? []).filter((r) => r.sender === x.name).length }));
+  }
 
   let cards: CardProps[];
   // Due view: statuses present today with counts (in sequence order), for the status dropdown.
   let statusOptions: { status: string; count: number }[] = [];
   let held = 0;
-  if (view === 'due') {
+  if (view === 'due' && ig) {
+    const { data, error } = await supabase.from('ig_queue').select('*');
+    if (error) throw new Error(error.message);
+    const all = (data ?? [])
+      .map((r) => toCard(r, null, templates, today, true, null, toApp({ app_name: r.app_name, app_name_short: r.app_name_short, rating_count: r.rating_count, genre: r.app_genre }), 'ig'))
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    statusOptions = Object.keys(IG_FLOW)
+      .map((status) => ({ status, count: all.filter((c) => c.status === status).length }))
+      .filter((o) => o.count > 0 || o.status === sp.status);
+    cards = sp.status ? all.filter((c) => c.status === sp.status) : all;
+  } else if (view === 'due') {
     const { data, error } = await supabase.from('queue').select('*').eq('vertical', vertical);
     if (error) throw new Error(error.message);
     // Active first: inactive contacts wait while an active colleague at the company is still in play.
@@ -202,7 +251,7 @@ export default async function QueuePage({
           r,
           r.artist_id ? toArtist({ ...r, name: r.artist_name }) : null,
           templates, today, true, acting,
-          toApp({ app_name: r.app_name, rating_count: r.rating_count, genre: r.app_genre }),
+          toApp({ app_name: r.app_name, app_name_short: r.app_name_short, rating_count: r.rating_count, genre: r.app_genre }),
         ),
       )
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
@@ -219,7 +268,11 @@ export default async function QueuePage({
       .limit(200);
     const q = (sp.q ?? '').replace(/[,()%*\\]/g, ' ').trim();
     if (q) query = query.or(`full_name.ilike.%${q}%,company_name.ilike.%${q}%`);
-    if (sp.status) query = query.eq('status', sp.status);
+    if (ig) {
+      // Instagram section: leads with a founder or company Instagram; status = their Instagram step.
+      query = query.not('ig_status', 'is', null);
+      if (sp.status) query = query.eq('ig_status', sp.status);
+    } else if (sp.status) query = query.eq('status', sp.status);
     if (sp.research) query = query.eq('research_status', sp.research);
     if (sp.type && vertical === 'music') query = query.eq('company_type', sp.type);
     const { data, error } = await query;
@@ -227,14 +280,15 @@ export default async function QueuePage({
     cards = (data ?? []).map((l) =>
       toCard(
         l, toArtist((l.artists as Row[]).find((a) => a.is_primary)), templates, today, false, acting,
-        toApp((l.apps as Row[]).find((a) => a.is_primary)),
+        toApp((l.apps as Row[]).find((a) => a.is_primary)), channel,
       ),
     );
   }
 
+  const keep = { p: qtab, ...(vertical === 'apps' ? { ch: channel } : {}) };
   const tab = (v: string, label: string) => (
     <Link
-      href={v === 'all' ? `/queue?view=all&p=${qtab}` : `/queue?p=${qtab}`}
+      href={`/queue?${new URLSearchParams({ ...(v === 'all' ? { view: 'all' } : {}), ...keep })}`}
       className={`rounded px-3 py-1.5 text-sm ${view === v ? 'bg-slate-900 text-white' : 'border border-slate-300'}`}
     >
       {label}
@@ -243,29 +297,49 @@ export default async function QueuePage({
 
   return (
     <div className="flex flex-col gap-4">
-      <RememberTab tab={qtab} />
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-slate-500">Working as:</span>
-        {(['li_check', ...SENDERS.map((x) => x.name)] as QueueTab[]).map((t) => (
-          <Link key={t} href={`/queue?${new URLSearchParams({ ...(view === 'all' ? { view: 'all' } : {}), p: t })}`}
-            className={`rounded px-3 py-1.5 ${qtab === t ? 'bg-brand-red font-semibold text-white' : 'border border-slate-300'}`}>
-            {t === 'li_check' ? 'LinkedIn check (VA)' : t}
-          </Link>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm">
-        <span>Connection requests today:</span>
-        {invites.map((x) => (
-          <span key={x.name} className={`${x.sent >= x.dailyLimit ? 'font-semibold text-red-700' : ''} ${qtab === x.name ? 'underline' : ''}`}>
-            {x.name} {x.sent}/{x.dailyLimit}{x.sent >= x.dailyLimit ? ' (limit reached)' : ''}
-          </span>
-        ))}
-        <span className="text-xs text-slate-500">(resets at midnight, Slovakia time)</span>
-      </div>
+      <RememberTab tab={qtab} channel={vertical === 'apps' ? channel : undefined} />
+      {vertical === 'apps' && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-slate-500">Channel:</span>
+          {(['li', 'ig'] as Channel[]).map((c) => (
+            <Link key={c} href={`/queue?${new URLSearchParams({ ...(view === 'all' ? { view: 'all' } : {}), p: qtab, ch: c })}`}
+              className={`rounded px-3 py-1.5 ${channel === c ? 'bg-slate-900 font-semibold text-white' : 'border border-slate-300'}`}>
+              {c === 'li' ? 'LinkedIn' : 'Instagram'}
+            </Link>
+          ))}
+        </div>
+      )}
+      {ig ? (
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm">
+          Instagram DMs today: <b>{igDmsToday}</b>{' '}
+          <span className="text-xs text-slate-500">(one shared Instagram profile, no daily limit)</span>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-slate-500">Working as:</span>
+            {(['li_check', ...SENDERS.map((x) => x.name)] as QueueTab[]).map((t) => (
+              <Link key={t} href={`/queue?${new URLSearchParams({ ...(view === 'all' ? { view: 'all' } : {}), ...keep, p: t })}`}
+                className={`rounded px-3 py-1.5 ${qtab === t ? 'bg-brand-red font-semibold text-white' : 'border border-slate-300'}`}>
+                {t === 'li_check' ? 'LinkedIn check (VA)' : t}
+              </Link>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm">
+            <span>Connection requests today:</span>
+            {invites.map((x) => (
+              <span key={x.name} className={`${x.sent >= x.dailyLimit ? 'font-semibold text-red-700' : ''} ${qtab === x.name ? 'underline' : ''}`}>
+                {x.name} {x.sent}/{x.dailyLimit}{x.sent >= x.dailyLimit ? ' (limit reached)' : ''}
+              </span>
+            ))}
+            <span className="text-xs text-slate-500">(resets at midnight, Slovakia time)</span>
+          </div>
+        </>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {tab('due', 'Due')}
         {tab('all', 'All leads')}
-        {view === 'due' && <StatusFilter key={sp.status ?? ''} value={sp.status ?? ''} options={statusOptions} tab={qtab} />}
+        {view === 'due' && <StatusFilter key={sp.status ?? ''} value={sp.status ?? ''} options={statusOptions} hidden={keep} />}
         <span className="ml-auto text-sm text-slate-500">
           {cards.length} {view === 'due' ? 'due today' : 'leads'}
           {view === 'all' && cards.length === 200 ? ' (first 200, narrow the search)' : ''}
@@ -276,12 +350,12 @@ export default async function QueuePage({
       {view === 'all' && (
         <form className="flex flex-wrap gap-2 text-sm">
           <input type="hidden" name="view" value="all" />
-          <input type="hidden" name="p" value={qtab} />
+          {Object.entries(keep).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
           <input name="q" defaultValue={sp.q} placeholder="Search name or company"
             className="min-w-56 flex-1 rounded border border-slate-300 px-3 py-1.5" />
           <select name="status" defaultValue={sp.status ?? ''} className="rounded border border-slate-300 px-2 py-1.5">
             <option value="">Any status</option>
-            {Object.keys(FLOW).map((s) => <option key={s} value={s}>{s}</option>)}
+            {Object.keys(flow).map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <select name="research" defaultValue={sp.research ?? ''} className="rounded border border-slate-300 px-2 py-1.5">
             <option value="">Any research status</option>
@@ -301,7 +375,7 @@ export default async function QueuePage({
         <p className="text-sm text-slate-500">{view === 'due' ? 'Nothing due. Nice.' : 'No leads match.'}</p>
       )}
       {cards.map((c) => (
-        <LeadCard key={`${c.leadId}:${c.status}:${c.message?.templateKey}:${c.nextActionAt}`} {...c} />
+        <LeadCard key={`${c.channel}:${c.leadId}:${c.status}:${c.message?.templateKey}:${c.nextActionAt}`} {...c} />
       ))}
     </div>
   );

@@ -32,6 +32,8 @@ export interface CardProps {
     website: string | null;
     email: string | null;
     emailType: string | null;
+    instagramUrl: string | null;
+    companyInstagramUrl: string | null;
   } | null;
   ready: boolean;
   action: string;
@@ -53,6 +55,10 @@ export interface CardProps {
   actingSender: string | null;
   /** Why this profile can't click the buttons here (another owner, no tab picked); null = it can. */
   blocked: string | null;
+  /** Which sequence this card works: LinkedIn (default) or Instagram (apps). */
+  channel?: 'li' | 'ig';
+  /** Apps: where the same lead is on the other channel, e.g. "LinkedIn: connected". */
+  otherChannel?: string | null;
 }
 
 const fmt = (n: number | null) => (n == null ? '–' : n.toLocaleString('en-US'));
@@ -94,6 +100,7 @@ export function LeadCard(p: CardProps) {
         </span>
         <span className="ml-auto flex gap-2 text-xs">
           {p.owner && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-900">{p.owner}</span>}
+          {p.channel === 'ig' && <span className="rounded bg-pink-100 px-2 py-0.5 text-pink-900">Instagram</span>}
           {p.messageType && <span className="rounded bg-indigo-100 px-2 py-0.5 text-indigo-800">{p.messageType}</span>}
           {p.ready ? (
             <span className="rounded bg-slate-100 px-2 py-0.5">{p.status}</span>
@@ -131,6 +138,8 @@ export function LeadCard(p: CardProps) {
           <div className="flex flex-wrap gap-x-3 text-xs">
             {p.linkedinUrl && <a href={p.linkedinUrl} target="_blank" rel="noreferrer" className="text-indigo-700 underline">LinkedIn</a>}
             {p.app.xUrl && <a href={p.app.xUrl} target="_blank" rel="noreferrer" className="text-indigo-700 underline">X</a>}
+            {p.app.instagramUrl && <a href={p.app.instagramUrl} target="_blank" rel="noreferrer" className="text-indigo-700 underline">Instagram (founder)</a>}
+            {p.app.companyInstagramUrl && <a href={p.app.companyInstagramUrl} target="_blank" rel="noreferrer" className="text-indigo-700 underline">Instagram (company)</a>}
             {p.app.crunchbaseUrl && <a href={p.app.crunchbaseUrl} target="_blank" rel="noreferrer" className="text-indigo-700 underline">Crunchbase</a>}
             {p.app.website && (
               <a href={/^https?:\/\//.test(p.app.website) ? p.app.website : `https://${p.app.website}`} target="_blank" rel="noreferrer" className="text-indigo-700 underline">
@@ -148,6 +157,8 @@ export function LeadCard(p: CardProps) {
           </div>
         </div>
       )}
+
+      {p.otherChannel && <div className="mt-1 text-xs text-slate-500">{p.otherChannel}</div>}
 
       {p.liActivity && (
         <div className={`mt-1 text-xs ${p.liActivity.startsWith('inactive') ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -222,6 +233,7 @@ export function LeadCard(p: CardProps) {
                       text: b.sends ? text : null,
                       templateKey: p.message?.templateKey ?? null,
                       version: p.message?.version ?? null,
+                      channel: p.channel ?? 'li',
                     }),
                   )
                 }
@@ -234,7 +246,7 @@ export function LeadCard(p: CardProps) {
             {p.canReply && (
               <button
                 disabled={pending || p.blocked !== null}
-                onClick={() => run(() => repliedAction({ leadId: p.leadId, fromStatus: p.status, sender: p.actingSender }))}
+                onClick={() => run(() => repliedAction({ leadId: p.leadId, fromStatus: p.status, sender: p.actingSender, channel: p.channel ?? 'li' }))}
                 className="ml-auto rounded border border-slate-900 px-3 py-1.5 text-sm disabled:opacity-40"
               >
                 Replied

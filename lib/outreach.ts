@@ -53,6 +53,8 @@ export interface Artist {
 /** Primary app of an apps lead (apps table). */
 export interface App {
   app_name: string;
+  /** Short name for messages; {app_name} uses it when set. */
+  app_name_short?: string | null;
   rating_count: number | null;
   genre: string | null;
 }
@@ -180,22 +182,65 @@ export const FLOW: Record<string, Step> = {
 
 export const FINAL_STATUSES = ['no_reply', 'not_accepted', 'won', 'lost'];
 
+// ---------- Instagram (apps vertical) ----------
+
+/** Outreach channel. LinkedIn = leads.status; Instagram (apps only) = leads.ig_status. */
+export type Channel = 'li' | 'ig';
+export const IG_START = 'ig_comment';
+
+/**
+ * Instagram sequence for apps leads with a founder or company Instagram link. One shared Instagram
+ * profile (no Andrej / Narek / Mher, no VA check). Runs in parallel to LinkedIn on the same lead,
+ * stored in leads.ig_status (null = not started = ig_comment). IG-only steps start with "ig_"; the
+ * reply and ending steps are the same as LinkedIn's.
+ */
+export const IG_FLOW: Record<string, Step> = {
+  ig_comment: {
+    action: 'Instagram: follow the account and leave a genuine comment on a recent post',
+    buttons: [{ id: 'done', label: 'Commented', to: 'ig_dm', dueInDays: 1 }],
+    canReply: true,
+  },
+  ig_dm: {
+    action: 'Instagram: send DM 1',
+    buttons: [{ id: 'sent', label: 'Sent', to: 'ig_dm_sent', dueInDays: 4, sends: true }],
+    canReply: true,
+  },
+  ig_dm_sent: {
+    action: 'Instagram: send the follow-up DM',
+    buttons: [{ id: 'sent', label: 'Sent', to: 'ig_followup_sent', dueInDays: 7, sends: true }],
+    canReply: true,
+  },
+  ig_followup_sent: {
+    action: 'No answer on Instagram',
+    buttons: [{ id: 'no_reply', label: 'No reply', to: 'no_reply', dueInDays: null }],
+    canReply: true,
+  },
+  replied: FLOW.replied,
+  call_booked: FLOW.call_booked,
+  no_reply: FLOW.no_reply,
+  won: FLOW.won,
+  lost: FLOW.lost,
+};
+
+export const flowFor = (channel: Channel): Record<string, Step> => (channel === 'ig' ? IG_FLOW : FLOW);
+
 /**
  * The statuses you pass through by always clicking the first (main) button, starting at `start`.
- * Used to draw the sequence: pathFrom('to_do') is the main path.
+ * Used to draw the sequence: pathFrom('li_check') is the LinkedIn main path.
  */
-export function pathFrom(start: string): string[] {
+export function pathFrom(start: string, flow: Record<string, Step> = FLOW): string[] {
   const path: string[] = [];
   let s: string | undefined = start;
-  while (s && FLOW[s] && !path.includes(s)) {
+  while (s && flow[s] && !path.includes(s)) {
     path.push(s);
-    s = FLOW[s].buttons[0]?.to;
+    s = flow[s].buttons[0]?.to;
   }
   return path;
 }
 
+/** The step for a LinkedIn or Instagram status (IG-only statuses start with "ig_"; the rest are shared). */
 export function step(status: string): Step {
-  const s = FLOW[status];
+  const s = FLOW[status] ?? IG_FLOW[status];
   if (!s) throw new Error(`Unknown status: ${status}`);
   return s;
 }
@@ -357,7 +402,7 @@ export const APP_PLACEHOLDERS = ['firstName', 'company', 'app_name'];
 
 export function placeholderValues(lead: Lead, artist: Artist | null, app: App | null = null): Record<string, string | null> {
   if (lead.company_type === 'app') {
-    return { firstName: lead.first_name, company: lead.company_name, app_name: app?.app_name ?? null };
+    return { firstName: lead.first_name, company: lead.company_name, app_name: app?.app_name_short || app?.app_name || null };
   }
   return {
     First: lead.first_name,
