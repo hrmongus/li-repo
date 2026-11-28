@@ -21,7 +21,8 @@ fit, find their founders, and deliver ONE CSV file in the exact format below. Us
 - Goal for this run: [50] apps.
 
 ## Per app
-1. Open the App Store page. Record app_name (as shown), app_store_url (canonical
+1. Open the App Store page. Record app_name (as shown), app_name_short (the brand name people use,
+   e.g. "BePresent" for "BePresent: Screen Time Control"; used in messages), app_store_url (canonical
    https://apps.apple.com/<country>/app/<slug>/id<digits>, no query string), rating_count (plain
    integer), avg_rating (e.g. 4.7), genre (App Store primary category), release_date (first release,
    YYYY-MM-DD, leave empty if unknown).
@@ -49,7 +50,7 @@ fit, find their founders, and deliver ONE CSV file in the exact format below. Us
    read.
 
 ## Output: one CSV file, UTF-8, comma-separated, header row exactly:
-founder_name,founder_title,linkedin_url,x_url,instagram_url,company_instagram_url,email,email_source,email_type,email_alt,app_name,app_store_url,rating_count,avg_rating,genre,release_date,website,crunchbase_url,tiktok_handle_found,yc_batch,source,notes
+founder_name,founder_title,linkedin_url,x_url,instagram_url,company_instagram_url,email,email_source,email_type,email_alt,app_name,app_name_short,app_store_url,rating_count,avg_rating,genre,release_date,website,crunchbase_url,tiktok_handle_found,yc_batch,source,notes
 
 Rules for the file:
 - One row per founder. Max 2 rows per app. Repeat the app columns (app_name … source) on both

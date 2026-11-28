@@ -71,7 +71,7 @@ function toArtist(a: Row | null | undefined): Artist | null {
 
 function toApp(a: Row | null | undefined): App | null {
   if (!a || !a.app_name) return null;
-  return { app_name: a.app_name, rating_count: a.rating_count ?? null, genre: a.genre ?? null };
+  return { app_name: a.app_name, app_name_short: a.app_name_short ?? null, rating_count: a.rating_count ?? null, genre: a.genre ?? null };
 }
 
 /** Why the current profile can't click this lead's buttons (null = it can). The database checks too. */
@@ -220,7 +220,7 @@ export default async function QueuePage({
     const { data, error } = await supabase.from('ig_queue').select('*');
     if (error) throw new Error(error.message);
     const all = (data ?? [])
-      .map((r) => toCard(r, null, templates, today, true, null, toApp({ app_name: r.app_name, rating_count: r.rating_count, genre: r.app_genre }), 'ig'))
+      .map((r) => toCard(r, null, templates, today, true, null, toApp({ app_name: r.app_name, app_name_short: r.app_name_short, rating_count: r.rating_count, genre: r.app_genre }), 'ig'))
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
     statusOptions = Object.keys(IG_FLOW)
       .map((status) => ({ status, count: all.filter((c) => c.status === status).length }))
@@ -251,7 +251,7 @@ export default async function QueuePage({
           r,
           r.artist_id ? toArtist({ ...r, name: r.artist_name }) : null,
           templates, today, true, acting,
-          toApp({ app_name: r.app_name, rating_count: r.rating_count, genre: r.app_genre }),
+          toApp({ app_name: r.app_name, app_name_short: r.app_name_short, rating_count: r.rating_count, genre: r.app_genre }),
         ),
       )
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));

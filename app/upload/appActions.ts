@@ -98,7 +98,7 @@ export async function uploadAppLeads(_prev: AppUploadResult | null, formData: Fo
     const existingLeads = await readAll((from) =>
       supabase
         .from('leads')
-        .select('id, linkedin_url, x_url, email, instagram_url, company_instagram_url, full_name, company_name, first_name, research_status, notes')
+        .select('id, linkedin_url, x_url, email, email_type, instagram_url, company_instagram_url, full_name, company_name, first_name, research_status, notes')
         .eq('vertical', 'apps')
         .range(from, from + 999),
     );
@@ -144,7 +144,7 @@ export async function uploadAppLeads(_prev: AppUploadResult | null, formData: Fo
     let added = 0;
     for (let i = 0; i < fresh.length; i += BATCH) {
       const chunk = fresh.slice(i, i + BATCH);
-      const { data, error } = await supabase.from('leads').insert(chunk.map(newLeadRow)).select('id, linkedin_url, x_url, email, instagram_url, full_name, company_name, research_status');
+      const { data, error } = await supabase.from('leads').insert(chunk.map(newLeadRow)).select('id, linkedin_url, x_url, email, email_type, instagram_url, full_name, company_name, research_status');
       if (error) throw new Error(`Adding founders failed: ${error.message}`);
       const idByKey = new Map((data ?? []).map((r) => [founderKey(r), r]));
       const apps = [];

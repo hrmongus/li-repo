@@ -73,6 +73,7 @@ export const APP_LEAD_FIELDS: Field[] = [
 
 export const APP_FIELDS: Field[] = [
   { key: 'app_name', kind: 'text', editable: true },
+  { key: 'app_name_short', kind: 'text', editable: true },
   { key: 'app_store_url', kind: 'text', editable: true },
   { key: 'rating_count', kind: 'int', editable: true },
   { key: 'avg_rating', kind: 'decimal', editable: true },

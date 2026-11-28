@@ -356,6 +356,8 @@ export function prepareLeads(leads: LeadInput[]) {
 
 export interface AppInput {
   app_name: string;
+  /** Short name for messages ("BePresent" instead of "BePresent: Screen Time Control"). */
+  app_name_short?: string;
   app_store_url?: string;
   rating_count?: number;
   avg_rating?: number;
@@ -391,7 +393,7 @@ export interface AppLeadInput {
 /** The apps CSV columns, exactly as the founder research files name them. */
 export const APP_CSV_COLUMNS = [
   'founder_name', 'founder_title', 'linkedin_url', 'x_url', 'instagram_url', 'company_instagram_url', 'email', 'email_source',
-  'email_type', 'email_alt', 'app_name', 'app_store_url', 'rating_count', 'avg_rating', 'genre',
+  'email_type', 'email_alt', 'app_name', 'app_name_short', 'app_store_url', 'rating_count', 'avg_rating', 'genre',
   'release_date', 'website', 'crunchbase_url', 'tiktok_handle_found', 'yc_batch', 'source',
 ] as const;
 type AppColumn = (typeof APP_CSV_COLUMNS)[number];
@@ -445,20 +447,26 @@ export function appKey(app: { app_store_url?: string | null; app_name?: string |
   return name ? `name:${name}` : null;
 }
 
+/** Shared role inboxes (founders@, team@, hello@ …): never a person's address, whatever email_type says. */
+const ROLE_EMAIL = /^(founders?|team|hello|hi|hey|contact|info|support|help|admin|office|press|media|team|sales|business|partners?|marketing|feedback|general|mail|inquiries|enquiries)@/i;
+
 type FounderKeys = {
-  linkedin_url?: string | null; x_url?: string | null; email?: string | null; instagram_url?: string | null;
-  full_name?: string | null; company_name?: string | null;
+  linkedin_url?: string | null; x_url?: string | null; email?: string | null; email_type?: string | null;
+  instagram_url?: string | null; full_name?: string | null; company_name?: string | null;
 };
 
 /**
- * Every key a founder can be matched on: LinkedIn, X, email, own Instagram; a founder reachable
- * only through the company Instagram is matched on name + company.
+ * Every key a founder can be matched on: LinkedIn, X, personal email, own Instagram. A generic
+ * company address (email_type "generic", e.g. contact@) is shared by co-founders, so it never
+ * identifies a person. Without any of these, the founder is matched on name + company.
  */
 export function founderKeys(l: FounderKeys): string[] {
+  const personalEmail =
+    l.email && (l.email_type ?? '').trim().toLowerCase() !== 'generic' && !ROLE_EMAIL.test(l.email.trim()) ? l.email : null;
   const keys = [
     l.linkedin_url && `li:${l.linkedin_url}`,
     l.x_url && `x:${l.x_url.toLowerCase()}`,
-    l.email && `email:${l.email.trim().toLowerCase()}`,
+    personalEmail && `email:${personalEmail.trim().toLowerCase()}`,
     l.instagram_url && `ig:${l.instagram_url.toLowerCase()}`,
   ].filter((k): k is string => !!k);
   if (keys.length === 0 && l.full_name) keys.push(`name:${l.full_name.trim().toLowerCase()}|${(l.company_name ?? '').trim().toLowerCase()}`);
@@ -530,9 +538,10 @@ export function csvToAppLeads(rows: string[][]): AppLeadInput[] {
     if (get('email_source')) lead.email_source = get('email_source');
     if (get('email_type')) lead.email_type = get('email_type');
 
-    const appName = get('app_name');
+    const appName = get('app_name') || get('app_name_short');
     if (appName) {
-      lead.company_name = appName;
+      const short = get('app_name_short');
+      lead.company_name = short || appName;
       const num = (c: AppColumn) => {
         const v = get(c);
         if (!v) return undefined;
@@ -551,6 +560,7 @@ export function csvToAppLeads(rows: string[][]): AppLeadInput[] {
       if (released && !isDate(released)) problems.push(`release_date not YYYY-MM-DD: ${released}`);
       lead.app = {
         app_name: appName,
+        app_name_short: short || undefined,
         app_store_url: get('app_store_url') ? cleanAppStoreUrl(get('app_store_url')) : undefined,
         rating_count: num('rating_count'),
         avg_rating: avg,

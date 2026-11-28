@@ -150,3 +150,22 @@ describe('apps on Instagram', () => {
     expect(clickButton('replied', 'plan_sent', '2026-11-27')).toMatchObject({ to_status: 'replied', plan_sent: true });
   });
 });
+
+describe('generic emails', () => {
+  it('co-founders sharing the company inbox are two founders', () => {
+    const shared = { email: 'contact@acme.app', email_type: 'generic' };
+    const { valid, duplicatesInFile } = prepareAppLeads([
+      { linkedin_url: 'https://www.linkedin.com/in/jack', first_name: 'Jack', full_name: 'Jack W', ...shared },
+      { linkedin_url: 'https://www.linkedin.com/in/charles', first_name: 'Charles', full_name: 'Charles W', ...shared },
+      { linkedin_url: null, first_name: 'Ann', full_name: 'Ann B', company_name: 'Acme', ...shared },
+    ]);
+    expect(valid).toHaveLength(3);
+    expect(duplicatesInFile).toBe(0);
+    // founders@ is shared even when marked personal
+    const f = { email: 'founders@acme.app', email_type: 'personal' };
+    expect(prepareAppLeads([
+      { linkedin_url: 'https://www.linkedin.com/in/a', first_name: 'A', ...f },
+      { linkedin_url: 'https://www.linkedin.com/in/b', first_name: 'B', ...f },
+    ]).valid).toHaveLength(2);
+  });
+});

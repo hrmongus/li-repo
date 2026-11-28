@@ -53,6 +53,8 @@ export interface Artist {
 /** Primary app of an apps lead (apps table). */
 export interface App {
   app_name: string;
+  /** Short name for messages; {app_name} uses it when set. */
+  app_name_short?: string | null;
   rating_count: number | null;
   genre: string | null;
 }
@@ -400,7 +402,7 @@ export const APP_PLACEHOLDERS = ['firstName', 'company', 'app_name'];
 
 export function placeholderValues(lead: Lead, artist: Artist | null, app: App | null = null): Record<string, string | null> {
   if (lead.company_type === 'app') {
-    return { firstName: lead.first_name, company: lead.company_name, app_name: app?.app_name ?? null };
+    return { firstName: lead.first_name, company: lead.company_name, app_name: app?.app_name_short || app?.app_name || null };
   }
   return {
     First: lead.first_name,

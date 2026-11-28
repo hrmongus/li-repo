@@ -14,6 +14,9 @@ alter table public.leads
 alter table public.leads add constraint leads_ig_only_apps
   check (vertical = 'apps' or (ig_status is null and company_instagram_url is null));
 
+-- 1a. apps: short app name for messages ("BePresent" instead of "BePresent: Screen Time Control").
+alter table public.apps add column app_name_short text;
+
 -- 1b. Entering the Instagram sequence: an apps lead with an Instagram link starts at ig_comment,
 --     due today. Works for uploads and for links added later in "Show all".
 create function public.leads_start_instagram() returns trigger language plpgsql as $$
@@ -157,7 +160,8 @@ with base as (
     and l.ig_status is not null
     and coalesce(l.instagram_url, l.company_instagram_url) is not null
 )
-select b.*, ap.app_name, ap.app_store_url, ap.rating_count, ap.genre as app_genre, ap.tiktok_handle
+select b.*, ap.app_name, ap.app_store_url, ap.rating_count, ap.genre as app_genre, ap.tiktok_handle,
+       ap.app_name_short
 from base b
 left join public.apps ap on ap.lead_id = b.id and ap.is_primary
 where b.ig_slot = 1
@@ -200,8 +204,8 @@ select a.id, a.full_name, a.first_name, a.title, a.company_name, a.company_type,
        ar.instagram_url, ar.instagram_followers, ar.tiktok_url, ar.tiktok_followers,
        a.vertical, a.x_url, a.instagram_url as lead_instagram_url, a.crunchbase_url, a.email_type,
        ap.app_name, ap.app_store_url, ap.rating_count, ap.genre as app_genre, ap.tiktok_handle,
-       -- appended: Instagram channel
-       a.company_instagram_url, a.ig_status
+       -- appended: Instagram channel, short app name
+       a.company_instagram_url, a.ig_status, ap.app_name_short
 from active a
 left join public.artists ar on ar.lead_id = a.id and ar.is_primary
 left join public.apps ap on ap.lead_id = a.id and ap.is_primary
